@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini 3 Image Pro Chat</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <button class="sidebar-toggle" id="sidebar-toggle">&#9776;</button>
+
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="new-chat-btn" id="new-chat-btn">
+                    <span>+</span> New Chat
+                </button>
+            </div>
+            <div class="sidebar-content" id="history-list">
+                <!-- Chat history will be populated here -->
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-container">
+            <header>
+                <h1>Gemini 3 Image Pro</h1>
+                <p class="subtitle">Powered by AI/ML API - Nano Banana Pro</p>
+            </header>
+
+            <div class="chat-container">
+                <div class="messages" id="messages">
+                    <div class="empty-state" id="empty-state">
+                        <div class="empty-state-icon">&#127912;</div>
+                        <h2>Create Amazing Images</h2>
+                        <p>Enter a prompt below to generate images, or upload existing images to edit them with AI.</p>
+                    </div>
+                </div>
+
+                <div class="input-area">
+                    <div class="input-inner">
+                        <div class="settings-bar">
+                            <div class="setting-group">
+                                <label for="model-select">Model:</label>
+                                <select id="model-select">
+                                    <option value="google/nano-banana-pro-edit">Nano Banana Pro Edit</option>
+                                    <option value="google/gemini-3-pro-image-preview-edit">Gemini 3 Pro Image Preview Edit</option>
+                                </select>
+                            </div>
+
+                            <div class="setting-group">
+                                <label for="num-images">Images:</label>
+                                <input type="number" id="num-images" min="1" max="4" value="1">
+                            </div>
+                        </div>
+
+                        <div class="image-upload-area">
+                            <div class="upload-options">
+                                <div class="upload-section">
+                                    <label class="file-upload-btn">
+                                        <input type="file" id="file-input" multiple accept="image/*">
+                                        Upload Images
+                                    </label>
+                                    <span class="upload-hint">or paste image URLs below</span>
+                                </div>
+                            </div>
+
+                            <div id="image-preview-container" class="image-preview-container"></div>
+
+                            <div class="url-input-section">
+                                <input type="text" id="image-url-input" placeholder="Enter image URL and press Enter (can add multiple)">
+                                <div id="url-list" class="url-list"></div>
+                            </div>
+                        </div>
+
+                        <div class="prompt-area">
+                            <textarea
+                                id="prompt-input"
+                                placeholder="Enter your prompt... (e.g., 'Make the image look like a watercolor painting')"
+                                rows="3"
+                            ></textarea>
+                        </div>
+                        <div class="generate-btn-area">
+                            <button id="send-btn" class="send-btn">Generate</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
