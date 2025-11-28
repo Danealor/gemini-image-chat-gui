@@ -94,6 +94,17 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// Cleanup endpoint for tests
+app.post('/api/test/cleanup', (req, res) => {
+    try {
+        cleanTestData();
+        ensureTestDirectories();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Chat endpoints (use test storage paths)
 app.get('/api/chats', async (req, res) => {
     try {

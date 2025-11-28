@@ -57,9 +57,11 @@ class GeminiChat {
         // Render history sidebar
         this.renderHistorySidebar();
 
-        // Create new chat if none exists
+        // Create new chat if none exists, otherwise render current chat
         if (!this.currentChatId) {
             this.createNewChat();
+        } else {
+            this.renderMessages();
         }
     }
 
@@ -571,26 +573,35 @@ class GeminiChat {
             formData.append('model', userMessage.model);
             formData.append('num_images', userMessage.numImages);
 
-            // Add images
-            const urls = [];
-            const base64Images = [];
+            // Add images - separate server paths, base64, and external URLs
+            const externalUrls = [];
+            const serverImages = [];
 
-            conversationContext.images.forEach(img => {
+            for (const img of conversationContext.images) {
                 if (img.startsWith('data:')) {
-                    base64Images.push(img);
-                } else {
-                    urls.push(img);
+                    // Base64 - convert to blob
+                    const response = await fetch(img);
+                    const blob = await response.blob();
+                    formData.append('images', blob, 'image.png');
+                } else if (img.startsWith('/api/images/')) {
+                    // Server-stored image - fetch and send as file
+                    serverImages.push(img);
+                } else if (img.startsWith('http')) {
+                    // External URL - pass through
+                    externalUrls.push(img);
                 }
-            });
+            }
 
-            for (const base64 of base64Images) {
-                const response = await fetch(base64);
+            // Fetch server-stored images and add as files
+            for (const serverPath of serverImages) {
+                const response = await fetch(serverPath);
                 const blob = await response.blob();
                 formData.append('images', blob, 'image.png');
             }
 
-            if (urls.length > 0) {
-                formData.append('image_urls', JSON.stringify(urls));
+            // Add external URLs
+            if (externalUrls.length > 0) {
+                formData.append('image_urls', JSON.stringify(externalUrls));
             }
 
             const response = await fetch('/api/generate', {
@@ -1078,28 +1089,35 @@ class GeminiChat {
             formData.append('model', userMessage.model);
             formData.append('num_images', userMessage.numImages);
 
-            // Add images - separate base64 from URLs
-            const urls = [];
-            const base64Images = [];
+            // Add images - separate server paths, base64, and external URLs
+            const externalUrls = [];
+            const serverImages = [];
 
-            context.images.forEach(img => {
+            for (const img of context.images) {
                 if (img.startsWith('data:')) {
-                    base64Images.push(img);
-                } else {
-                    urls.push(img);
+                    // Base64 - convert to blob
+                    const response = await fetch(img);
+                    const blob = await response.blob();
+                    formData.append('images', blob, 'image.png');
+                } else if (img.startsWith('/api/images/')) {
+                    // Server-stored image - fetch and send as file
+                    serverImages.push(img);
+                } else if (img.startsWith('http')) {
+                    // External URL - pass through
+                    externalUrls.push(img);
                 }
-            });
+            }
 
-            // For base64 images, we need to convert back to blobs and append as files
-            for (const base64 of base64Images) {
-                const response = await fetch(base64);
+            // Fetch server-stored images and add as files
+            for (const serverPath of serverImages) {
+                const response = await fetch(serverPath);
                 const blob = await response.blob();
                 formData.append('images', blob, 'image.png');
             }
 
-            // Add URLs
-            if (urls.length > 0) {
-                formData.append('image_urls', JSON.stringify(urls));
+            // Add external URLs
+            if (externalUrls.length > 0) {
+                formData.append('image_urls', JSON.stringify(externalUrls));
             }
 
             const response = await fetch('/api/generate', {
