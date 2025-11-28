@@ -6,6 +6,11 @@ node_modules/
 
 # Server-side data storage
 data/
+tests/test-data/
+
+# Playwright
+test-results/
+playwright-report/
 
 # Logs
 logs
