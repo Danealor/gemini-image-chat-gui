@@ -923,12 +923,42 @@ header h1 {
 
 .lightbox-info {
     position: absolute;
-    bottom: -40px;
+    bottom: -80px;
     left: 50%;
     transform: translateX(-50%);
     color: white;
     font-size: 14px;
     opacity: 0.8;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.lightbox-version-nav {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    justify-content: center;
+}
+
+.lightbox-version-btn {
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.2s;
+}
+
+.lightbox-version-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.lightbox-version-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
 }
 
 /* Notification Toast */

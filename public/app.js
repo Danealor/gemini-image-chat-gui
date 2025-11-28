@@ -435,22 +435,15 @@ class GeminiChat {
         const chat = this.chats[this.currentChatId];
         const msg = chat.messages[msgIndex];
 
-        let images = [];
-        let title = '';
-
         if (imageType === 'input') {
-            images = msg.inputImages || [];
-            title = 'Input Images';
+            const images = msg.inputImages || [];
+            if (images.length === 0) return;
+            this.showLightbox(images, imgIndex, 'Input Images', msgIndex, imageType);
         } else if (imageType === 'generated') {
             const generations = msg.generations || [{ images: msg.images }];
             const currentVersion = msg.currentVersion !== undefined ? msg.currentVersion : 0;
-            images = generations[currentVersion]?.images || msg.images || [];
-            title = `Generated Images (Version ${currentVersion + 1})`;
+            this.showGeneratedLightbox(msgIndex, currentVersion, imgIndex, generations);
         }
-
-        if (images.length === 0) return;
-
-        this.showLightbox(images, imgIndex, title, msgIndex, imageType);
     }
 
     showLightbox(images, currentIndex, title, msgIndex, imageType) {
@@ -520,6 +513,111 @@ class GeminiChat {
         document.addEventListener('keydown', keyHandler);
     }
 
+    showGeneratedLightbox(msgIndex, currentVersion, currentImageIndex, generations) {
+        const lightbox = document.createElement('div');
+        lightbox.className = 'lightbox';
+
+        let versionIdx = currentVersion;
+        let imageIdx = currentImageIndex;
+
+        const render = () => {
+            const images = generations[versionIdx]?.images || [];
+            const totalVersions = generations.length;
+
+            lightbox.innerHTML = `
+                <div class="lightbox-content">
+                    <button class="lightbox-close">&times;</button>
+                    <button class="lightbox-nav lightbox-prev" ${imageIdx === 0 ? 'disabled' : ''}>&#8592;</button>
+                    <img src="${images[imageIdx]}" alt="Generated image" class="lightbox-image">
+                    <button class="lightbox-nav lightbox-next" ${imageIdx === images.length - 1 ? 'disabled' : ''}>&#8594;</button>
+                    <div class="lightbox-info">
+                        <div>Image ${imageIdx + 1} of ${images.length}</div>
+                        <div class="lightbox-version-nav">
+                            <button class="lightbox-version-btn" data-action="prev" ${versionIdx === 0 ? 'disabled' : ''}>&#8592; Prev Version</button>
+                            <span>Version ${versionIdx + 1} of ${totalVersions}</span>
+                            <button class="lightbox-version-btn" data-action="next" ${versionIdx === totalVersions - 1 ? 'disabled' : ''}>Next Version &#8594;</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Reattach event listeners after render
+            attachListeners();
+        };
+
+        const attachListeners = () => {
+            const imgEl = lightbox.querySelector('.lightbox-image');
+            const prevBtn = lightbox.querySelector('.lightbox-prev');
+            const nextBtn = lightbox.querySelector('.lightbox-next');
+            const closeBtn = lightbox.querySelector('.lightbox-close');
+            const versionBtns = lightbox.querySelectorAll('.lightbox-version-btn');
+
+            prevBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (imageIdx > 0) {
+                    imageIdx--;
+                    render();
+                }
+            });
+
+            nextBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const images = generations[versionIdx]?.images || [];
+                if (imageIdx < images.length - 1) {
+                    imageIdx++;
+                    render();
+                }
+            });
+
+            versionBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const action = btn.dataset.action;
+                    if (action === 'prev' && versionIdx > 0) {
+                        versionIdx--;
+                        imageIdx = 0; // Reset to first image of new version
+                        render();
+                    } else if (action === 'next' && versionIdx < generations.length - 1) {
+                        versionIdx++;
+                        imageIdx = 0; // Reset to first image of new version
+                        render();
+                    }
+                });
+            });
+
+            closeBtn.addEventListener('click', () => {
+                lightbox.remove();
+                document.removeEventListener('keydown', keyHandler);
+            });
+
+            lightbox.addEventListener('click', (e) => {
+                if (e.target === lightbox) {
+                    lightbox.remove();
+                    document.removeEventListener('keydown', keyHandler);
+                }
+            });
+        };
+
+        // Keyboard navigation
+        const keyHandler = (e) => {
+            const images = generations[versionIdx]?.images || [];
+            if (e.key === 'Escape') {
+                lightbox.remove();
+                document.removeEventListener('keydown', keyHandler);
+            } else if (e.key === 'ArrowLeft' && imageIdx > 0) {
+                imageIdx--;
+                render();
+            } else if (e.key === 'ArrowRight' && imageIdx < images.length - 1) {
+                imageIdx++;
+                render();
+            }
+        };
+
+        document.body.appendChild(lightbox);
+        render();
+        document.addEventListener('keydown', keyHandler);
+    }
+
     changeVersion(msgIndex, delta) {
         const chat = this.chats[this.currentChatId];
         const msg = chat.messages[msgIndex];
@@ -532,7 +630,52 @@ class GeminiChat {
         if (newVersion >= 0 && newVersion < msg.generations.length) {
             msg.currentVersion = newVersion;
             this.saveChats();
-            this.renderMessages();
+
+            // Only update the specific message element instead of re-rendering everything
+            const messageElement = this.elements.messagesContainer.querySelector(`.message[data-index="${msgIndex}"]`);
+            if (messageElement) {
+                // Find the message body and fade it out/in
+                const messageBody = messageElement.querySelector('.message-body');
+                if (messageBody) {
+                    messageBody.style.transition = 'opacity 0.15s ease';
+                    messageBody.style.opacity = '0';
+
+                    setTimeout(() => {
+                        // Update the content
+                        const generations = msg.generations || [{ images: msg.images }];
+                        const currentGen = generations[newVersion];
+                        const images = currentGen?.images || [];
+                        const totalVersions = generations.length;
+
+                        let contentHtml = `<div class="message-content">Generated ${images.length} image(s)</div>`;
+
+                        if (images.length > 0) {
+                            contentHtml += '<div class="message-images">';
+                            images.forEach((imgUrl, imgIndex) => {
+                                contentHtml += `<img src="${imgUrl}" alt="Generated image" class="message-image clickable-image"
+                                                     data-msg-index="${msgIndex}" data-img-index="${imgIndex}" data-image-type="generated">`;
+                            });
+                            contentHtml += '</div>';
+                        }
+
+                        contentHtml += `
+                            <div class="version-nav">
+                                <button class="version-btn prev-version" data-index="${msgIndex}" ${newVersion === 0 ? 'disabled' : ''}>&#8592;</button>
+                                <span class="version-info">${newVersion + 1} / ${totalVersions}</span>
+                                <button class="version-btn next-version" data-index="${msgIndex}" ${newVersion === totalVersions - 1 ? 'disabled' : ''}>&#8594;</button>
+                                <button class="action-btn regenerate-btn" data-index="${msgIndex}">Regenerate</button>
+                            </div>`;
+
+                        messageBody.innerHTML = contentHtml;
+
+                        // Reattach handlers for this message
+                        this.attachMessageHandlers();
+
+                        // Fade back in
+                        messageBody.style.opacity = '1';
+                    }, 150);
+                }
+            }
         }
     }
 
@@ -553,6 +696,16 @@ class GeminiChat {
         // Initialize generations array if not exists
         if (!assistantMessage.generations) {
             assistantMessage.generations = [{ images: assistantMessage.images }];
+        }
+
+        // Show loading indicator
+        const messageElement = this.elements.messagesContainer.querySelector(`.message[data-index="${assistantMsgIndex}"]`);
+        if (messageElement) {
+            const regenerateBtn = messageElement.querySelector('.regenerate-btn');
+            if (regenerateBtn) {
+                regenerateBtn.disabled = true;
+                regenerateBtn.textContent = 'Regenerating...';
+            }
         }
 
         // Generate new version
