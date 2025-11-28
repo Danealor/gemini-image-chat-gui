@@ -4,6 +4,9 @@ node_modules/
 # Environment variables
 .env
 
+# Server-side data storage
+data/
+
 # Logs
 logs
 *.log
