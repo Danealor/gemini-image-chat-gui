@@ -5,7 +5,7 @@ class GeminiChat {
         this.uploadedFiles = [];
         this.uploadedFilesData = []; // Store base64 data for persistence
         this.imageUrls = [];
-        this.storageWarningShown = false;
+        this.storageService = new ChatStorageService();
 
         this.elements = {
             messagesContainer: document.getElementById('messages'),
@@ -27,9 +27,9 @@ class GeminiChat {
         this.init();
     }
 
-    init() {
-        // Load chats from localStorage
-        this.loadChats();
+    async init() {
+        // Load chats from server
+        await this.loadChats();
 
         // Event listeners
         this.elements.sendBtn.addEventListener('click', () => this.sendMessage());
@@ -61,126 +61,76 @@ class GeminiChat {
         if (!this.currentChatId) {
             this.createNewChat();
         }
-
-        // Check storage usage
-        this.checkStorageUsage();
     }
 
     toggleSidebar() {
         this.elements.sidebar.classList.toggle('open');
     }
 
-    loadChats() {
+    async loadChats() {
         try {
-            const saved = localStorage.getItem('gemini-chats');
-            if (saved) {
-                this.chats = JSON.parse(saved);
-                // Load the most recent chat
-                const chatIds = Object.keys(this.chats).sort((a, b) => b - a);
-                if (chatIds.length > 0) {
-                    this.currentChatId = chatIds[0];
-                }
+            const chatsArray = await this.storageService.loadChats();
+
+            // Convert array to object keyed by ID
+            this.chats = {};
+            chatsArray.forEach(chat => {
+                this.chats[chat.id] = chat;
+            });
+
+            // Load most recent chat
+            const chatIds = Object.keys(this.chats).sort((a, b) => b - a);
+            if (chatIds.length > 0) {
+                this.currentChatId = chatIds[0];
             }
         } catch (e) {
             console.error('Error loading chats:', e);
+            this.showNotification('Failed to load chats from server', 'error');
             this.chats = {};
         }
     }
 
-    saveChats() {
+    async saveChats() {
         try {
-            localStorage.setItem('gemini-chats', JSON.stringify(this.chats));
+            if (!this.currentChatId || !this.chats[this.currentChatId]) {
+                return;
+            }
+            await this.storageService.saveChat(this.chats[this.currentChatId]);
         } catch (e) {
-            if (e.name === 'QuotaExceededError') {
-                this.handleStorageQuotaExceeded();
-            } else {
-                console.error('Error saving chats:', e);
-            }
+            console.error('Error saving chat:', e);
+            this.showNotification('Failed to save chat. Please try again.', 'error');
         }
     }
 
-    checkStorageUsage() {
-        try {
-            const data = localStorage.getItem('gemini-chats') || '';
-            const sizeInMB = (data.length * 2) / (1024 * 1024); // Approximate size in MB
-            if (sizeInMB > 4) { // Warning at 4MB (localStorage limit is ~5MB)
-                this.showStorageWarning(sizeInMB);
-            }
-        } catch (e) {
-            console.error('Error checking storage:', e);
-        }
+    showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
     }
 
-    showStorageWarning(sizeInMB) {
-        if (this.storageWarningShown) return;
-        this.storageWarningShown = true;
-
-        const warning = document.createElement('div');
-        warning.className = 'storage-warning';
-        warning.innerHTML = `
-            Storage is nearly full (${sizeInMB.toFixed(1)}MB used).
-            Consider deleting old chats to free up space.
-            <button id="cleanup-storage">Clean Up Old Chats</button>
-        `;
-        this.elements.messagesContainer.parentElement.insertBefore(warning, this.elements.messagesContainer);
-
-        warning.querySelector('#cleanup-storage').addEventListener('click', () => {
-            this.cleanupOldChats();
-            warning.remove();
-            this.storageWarningShown = false;
-        });
-    }
-
-    handleStorageQuotaExceeded() {
-        const confirmed = confirm(
-            'Storage is full! Would you like to automatically remove old chats to make space?\n\n' +
-            'This will delete the oldest chats until there\'s enough space.'
-        );
-
-        if (confirmed) {
-            this.cleanupOldChats();
-            // Try saving again
-            try {
-                localStorage.setItem('gemini-chats', JSON.stringify(this.chats));
-            } catch (e) {
-                alert('Still not enough space. Please manually delete some chats from the sidebar.');
-            }
-        } else {
-            alert('Could not save. Please delete some old chats manually from the sidebar.');
-        }
-    }
-
-    cleanupOldChats() {
-        const chatIds = Object.keys(this.chats).sort((a, b) => a - b); // Oldest first
-
-        // Keep removing oldest chats until we're under 3MB or only 3 chats left
-        while (chatIds.length > 3) {
-            const oldestId = chatIds.shift();
-            if (oldestId !== this.currentChatId) {
-                delete this.chats[oldestId];
-            }
-
-            // Check size
-            const data = JSON.stringify(this.chats);
-            const sizeInMB = (data.length * 2) / (1024 * 1024);
-            if (sizeInMB < 3) break;
-        }
-
-        this.saveChats();
-        this.renderHistorySidebar();
-        alert('Old chats have been cleaned up to free storage space.');
-    }
-
-    createNewChat() {
+    async createNewChat() {
         const chatId = Date.now().toString();
-        this.chats[chatId] = {
+        const newChat = {
             id: chatId,
             title: 'New Chat',
             createdAt: new Date().toISOString(),
             messages: []
         };
+
+        this.chats[chatId] = newChat;
         this.currentChatId = chatId;
-        this.saveChats();
+
+        try {
+            await this.storageService.createChat(newChat);
+        } catch (error) {
+            console.error('Error creating chat:', error);
+            this.showNotification('Failed to create chat', 'error');
+        }
+
         this.renderHistorySidebar();
         this.renderMessages();
         this.clearInputs();
@@ -189,23 +139,32 @@ class GeminiChat {
         this.elements.sidebar.classList.remove('open');
     }
 
-    deleteChat(chatId) {
-        delete this.chats[chatId];
-        this.saveChats();
-
-        if (this.currentChatId === chatId) {
-            const chatIds = Object.keys(this.chats).sort((a, b) => b - a);
-            if (chatIds.length > 0) {
-                this.currentChatId = chatIds[0];
-            } else {
-                this.createNewChat();
-                return;
-            }
+    async deleteChat(chatId) {
+        if (Object.keys(this.chats).length === 1) {
+            alert('Cannot delete the last chat.');
+            return;
         }
 
-        this.renderHistorySidebar();
-        this.renderMessages();
-        this.checkStorageUsage();
+        try {
+            await this.storageService.deleteChat(chatId);
+            delete this.chats[chatId];
+
+            if (this.currentChatId === chatId) {
+                const chatIds = Object.keys(this.chats).sort((a, b) => b - a);
+                if (chatIds.length > 0) {
+                    this.currentChatId = chatIds[0];
+                } else {
+                    this.createNewChat();
+                    return;
+                }
+            }
+
+            this.renderHistorySidebar();
+            this.renderMessages();
+        } catch (error) {
+            console.error('Error deleting chat:', error);
+            this.showNotification('Failed to delete chat', 'error');
+        }
     }
 
     switchChat(chatId) {
@@ -645,24 +604,50 @@ class GeminiChat {
                 throw new Error(data.error || 'Failed to generate image');
             }
 
-            // Extract image URLs
-            const images = [];
-            if (data.data && data.data.length > 0) {
-                data.data.forEach(item => {
-                    if (item.url) {
-                        images.push(item.url);
-                    } else if (item.b64_json) {
-                        images.push(`data:image/png;base64,${item.b64_json}`);
-                    }
-                });
+            // Process and save generated images to server
+            const generatedImages = [];
+            const versionIndex = assistantMessage.generations.length;
+
+            // Handle different API response formats
+            const apiImages = data.images || (data.data && data.data.map(d => d.url || d.b64_json)) || [];
+
+            for (let i = 0; i < apiImages.length; i++) {
+                const image = apiImages[i];
+
+                // Check if it's base64 or URL
+                if (image.startsWith('data:')) {
+                    // Save base64 to server
+                    const serverUrl = await this.storageService.saveGeneratedImage(
+                        null,
+                        image,
+                        this.currentChatId,
+                        assistantMsgIndex,
+                        versionIndex,
+                        i
+                    );
+                    generatedImages.push(serverUrl);
+                } else if (image.startsWith('http')) {
+                    // Download URL and save to server
+                    const serverUrl = await this.storageService.saveGeneratedImage(
+                        image,
+                        null,
+                        this.currentChatId,
+                        assistantMsgIndex,
+                        versionIndex,
+                        i
+                    );
+                    generatedImages.push(serverUrl);
+                } else {
+                    generatedImages.push(image);
+                }
             }
 
             // Add new generation version
-            assistantMessage.generations.push({ images: images, timestamp: new Date().toISOString() });
+            assistantMessage.generations.push({ images: generatedImages, timestamp: new Date().toISOString() });
             assistantMessage.currentVersion = assistantMessage.generations.length - 1;
-            assistantMessage.images = images; // Keep for backwards compatibility
+            assistantMessage.images = generatedImages; // Keep for backwards compatibility
 
-            this.saveChats();
+            await this.saveChats();
             this.renderMessages();
 
         } catch (error) {
@@ -983,42 +968,80 @@ class GeminiChat {
             return;
         }
 
-        const model = this.elements.modelSelect.value;
-        const numImages = parseInt(this.elements.numImages.value);
+        // Show loading state
+        this.elements.sendBtn.disabled = true;
+        this.elements.sendBtn.textContent = 'Uploading images...';
 
-        // Collect all images from input
-        const inputImages = [...this.uploadedFilesData, ...this.imageUrls];
+        try {
+            const model = this.elements.modelSelect.value;
+            const numImages = parseInt(this.elements.numImages.value);
 
-        // Create user message
-        const userMessage = {
-            role: 'user',
-            prompt: prompt,
-            model: model,
-            numImages: numImages,
-            inputImages: inputImages,
-            timestamp: new Date().toISOString()
-        };
+            // Upload base64 images to server first
+            const inputImages = [];
+            const messageIndex = this.chats[this.currentChatId].messages.length;
 
-        // Add to chat
-        const chat = this.chats[this.currentChatId];
-        chat.messages.push(userMessage);
+            // Process uploaded files (base64)
+            for (let i = 0; i < this.uploadedFilesData.length; i++) {
+                const base64Data = this.uploadedFilesData[i];
 
-        // Update chat title if first user message
-        const userMsgCount = chat.messages.filter(m => m.role === 'user').length;
-        if (userMsgCount === 1) {
-            chat.title = prompt.substring(0, 50) + (prompt.length > 50 ? '...' : '');
+                // Convert base64 to blob
+                const response = await fetch(base64Data);
+                const blob = await response.blob();
+                const file = new File([blob], `image_${i}.png`, { type: blob.type });
+
+                // Upload to server
+                const serverUrl = await this.storageService.uploadImage(
+                    file,
+                    this.currentChatId,
+                    messageIndex,
+                    i
+                );
+                inputImages.push(serverUrl);
+            }
+
+            // Add external URLs as-is
+            inputImages.push(...this.imageUrls);
+
+            // Create user message
+            const userMessage = {
+                role: 'user',
+                prompt: prompt,
+                model: model,
+                numImages: numImages,
+                inputImages: inputImages,
+                timestamp: new Date().toISOString()
+            };
+
+            // Add to chat
+            const chat = this.chats[this.currentChatId];
+            chat.messages.push(userMessage);
+
+            // Update chat title if first user message
+            const userMsgCount = chat.messages.filter(m => m.role === 'user').length;
+            if (userMsgCount === 1) {
+                chat.title = prompt.substring(0, 50) + (prompt.length > 50 ? '...' : '');
+            }
+
+            await this.saveChats();
+            this.renderHistorySidebar();
+            this.renderMessages();
+
+            // Clear inputs
+            this.clearInputs();
+
+            // Update button text
+            this.elements.sendBtn.textContent = 'Generating...';
+
+            // Generate response
+            const userMsgIndex = chat.messages.length - 1;
+            await this.generateResponseForUserMessage(userMsgIndex);
+        } catch (error) {
+            console.error('Error sending message:', error);
+            this.showNotification('Failed to send message', 'error');
+        } finally {
+            this.elements.sendBtn.disabled = false;
+            this.elements.sendBtn.textContent = 'Generate';
         }
-
-        this.saveChats();
-        this.renderHistorySidebar();
-        this.renderMessages();
-
-        // Clear inputs
-        this.clearInputs();
-
-        // Generate response
-        const userMsgIndex = chat.messages.length - 1;
-        await this.generateResponseForUserMessage(userMsgIndex);
     }
 
     async generateResponseForUserMessage(userMsgIndex) {
@@ -1093,30 +1116,57 @@ class GeminiChat {
                 throw new Error(data.error || 'Failed to generate image');
             }
 
-            // Extract image URLs (prefer URLs over base64 to save storage)
-            const images = [];
-            if (data.data && data.data.length > 0) {
-                data.data.forEach(item => {
-                    if (item.url) {
-                        images.push(item.url);
-                    } else if (item.b64_json) {
-                        // Only use base64 if no URL available
-                        images.push(`data:image/png;base64,${item.b64_json}`);
-                    }
-                });
+            // Process and save generated images to server
+            const generatedImages = [];
+            const messageIndex = chat.messages.length;
+            const versionIndex = 0;
+
+            // Handle different API response formats
+            const apiImages = data.images || (data.data && data.data.map(d => d.url || d.b64_json)) || [];
+
+            for (let i = 0; i < apiImages.length; i++) {
+                const image = apiImages[i];
+
+                // Check if it's base64 or URL
+                if (image.startsWith('data:')) {
+                    // Save base64 to server
+                    const serverUrl = await this.storageService.saveGeneratedImage(
+                        null,
+                        image,
+                        this.currentChatId,
+                        messageIndex,
+                        versionIndex,
+                        i
+                    );
+                    generatedImages.push(serverUrl);
+                } else if (image.startsWith('http')) {
+                    // Download URL and save to server
+                    const serverUrl = await this.storageService.saveGeneratedImage(
+                        image,
+                        null,
+                        this.currentChatId,
+                        messageIndex,
+                        versionIndex,
+                        i
+                    );
+                    generatedImages.push(serverUrl);
+                } else {
+                    // Keep as-is if it doesn't match expected formats
+                    generatedImages.push(image);
+                }
             }
 
             // Add assistant message with generations array
             const assistantMessage = {
                 role: 'assistant',
-                images: images,
-                generations: [{ images: images, timestamp: new Date().toISOString() }],
+                images: generatedImages,
+                generations: [{ images: generatedImages, timestamp: new Date().toISOString() }],
                 currentVersion: 0,
                 timestamp: new Date().toISOString()
             };
 
             chat.messages.push(assistantMessage);
-            this.saveChats();
+            await this.saveChats();
             this.renderMessages();
 
         } catch (error) {
