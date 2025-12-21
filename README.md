@@ -17,20 +17,27 @@ A modern Node.js web application that provides an AI Studio-style chat interface
   - Upload local images
   - Provide image URLs
 - View generated images directly in the chat
-- Click images to open in full size
+- Click images to open in full-size lightbox with version navigation
+
+### Version Management
+- **Regenerate** - Create multiple versions of the same generation
+- **Version Navigation** - Arrow buttons to switch between regeneration versions
+- **Lightbox Version Switching** - Navigate versions within the preview window
+- Smooth fade animations when switching versions
 
 ### Message Management
 - **Edit messages** - Modify prompts and regenerate
-- **Regenerate** - Retry with the same prompt
 - **Add images** - Add more images to existing messages
 - **Remove images** - Remove individual images from messages
 - **Copy to New Chat** - Copy a prompt and its images to start a new chat
 
 ### Chat History
-- Persistent chat history stored in browser localStorage
+- **Server-side storage** - No more 5MB localStorage limitations
+- Persistent chat history stored on the server's file system
+- Images stored locally (both uploaded and generated)
 - Sidebar organized by date (Today, Yesterday, older dates)
 - Switch between chats easily
-- Delete old chats
+- Delete old chats (with protection against deleting the last chat)
 - Start new chats anytime
 
 ## Prerequisites
@@ -87,8 +94,30 @@ http://localhost:3000
    - Hover over any message to see action buttons
    - **Edit**: Modify the prompt text
    - **Add Image**: Add more images to the message
-   - **Regenerate**: Generate new images with the same settings
+   - **Regenerate**: Generate new versions with the same settings
    - **Copy to New Chat**: Start a new chat with the same prompt and images
+   - **Version Arrows**: Navigate between different regeneration versions
+
+## Testing
+
+Run the comprehensive test suite:
+```bash
+npm test
+```
+
+Run tests with visible browser:
+```bash
+npm run test:headed
+```
+
+The test suite includes:
+- Chat creation and persistence
+- Image upload and storage
+- Generated image handling
+- Regeneration functionality
+- Message editing
+- Multi-chat management
+- External URL handling
 
 ## Example Prompts
 
@@ -123,22 +152,58 @@ For more information, see the [AI/ML API Documentation](https://docs.aimlapi.com
 ```
 AIMLAPIGUI/
 ├── public/
-│   ├── index.html      # Main HTML interface
-│   ├── style.css       # Dark theme styling
-│   └── app.js          # Client-side JavaScript with chat management
-├── server.js           # Express server
-├── package.json        # Dependencies
-├── .env.example        # Environment variables template
-└── README.md          # This file
+│   ├── index.html          # Main HTML interface
+│   ├── style.css           # Dark theme styling
+│   ├── app.js              # Client-side JavaScript with chat management
+│   └── storage-service.js  # Client-side API wrapper for storage
+├── tests/
+│   ├── storage-migration.spec.js  # Playwright test suite
+│   └── test-server.js             # Test server with stubbed API
+├── storage.js              # Server-side file system storage module
+├── server.js               # Express server with RESTful API
+├── playwright.config.js    # Playwright test configuration
+├── package.json            # Dependencies
+├── .env.example            # Environment variables template
+└── README.md               # This file
 ```
 
 ## Data Storage
 
-Chat history is stored in your browser's localStorage under the key `gemini-chats`. This means:
-- Your chat history persists across browser sessions
-- Data stays on your local computer
-- Clearing browser data will remove chat history
-- Each browser/profile has its own separate history
+Chat history and images are stored on the server's file system in the `data/` directory:
+
+```
+data/
+├── chats/           # Chat JSON files (one per chat)
+└── images/
+    ├── input/       # User-uploaded images
+    └── generated/   # AI-generated images
+```
+
+This means:
+- No browser storage limitations (was 5MB with localStorage)
+- Data persists on the server
+- Images stored with unique filenames to prevent conflicts
+- All data is in the `data/` directory (excluded from git)
+
+## Dependencies
+
+### Runtime Dependencies
+- **express**: Web server framework
+- **dotenv**: Environment variable management
+- **multer**: File upload handling
+- **form-data**: Multipart form data construction
+- **node-fetch**: HTTP requests to AI/ML API
+
+### Development Dependencies
+- **nodemon**: Auto-restart during development
+- **@playwright/test**: Browser automation testing
+
+### Key Learnings
+- **No database required**: Simple file system storage works great for this use case
+- **FormData handling**: The AI/ML API requires multipart form data for image uploads
+- **Image processing**: Server-stored images need to be fetched as blobs and re-sent to the API
+- **Async/await**: All storage operations are asynchronous for better performance
+- **Testing**: Playwright provides excellent browser automation with minimal setup
 
 ## Troubleshooting
 
@@ -158,8 +223,14 @@ Chat history is stored in your browser's localStorage under the key `gemini-chat
 - Check for any error messages in the terminal
 
 ### Chat history not loading
-- Check that localStorage is enabled in your browser
-- Try clearing the `gemini-chats` key from localStorage if corrupted
+- Check that the server is running
+- Verify the `data/` directory exists and has proper permissions
+- Check browser console for network errors
+
+### Tests failing
+- Make sure test server port 3001 is available
+- Run `npm install` to ensure @playwright/test is installed
+- Check that you have the latest Playwright browsers: `npx playwright install`
 
 ## License
 
