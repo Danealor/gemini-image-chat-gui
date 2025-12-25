@@ -343,6 +343,47 @@ header h1 {
     transform: scale(1.02);
 }
 
+.message-image.selected {
+    border-color: #4ade80;
+    box-shadow: 0 0 0 2px #4ade8050;
+}
+
+.generated-image-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.image-select-btn {
+    padding: 6px 16px;
+    background: #3a3a5a;
+    border: 1px solid #4a4a6a;
+    border-radius: 6px;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.image-select-btn:hover {
+    background: #4a4a6a;
+    border-color: #5a5a7a;
+}
+
+.image-select-btn.selected {
+    background: #4ade80;
+    border-color: #4ade80;
+    color: #1a1a2e;
+    font-weight: 500;
+}
+
+.image-select-btn.selected:hover {
+    background: #22c55e;
+    border-color: #22c55e;
+}
+
 .error-message {
     background: rgba(204, 51, 51, 0.2);
     color: #ff6b6b;

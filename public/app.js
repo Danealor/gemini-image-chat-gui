@@ -486,10 +486,22 @@ class GeminiChat {
                 contentHtml = `<div class="message-content">Generated ${images.length} image(s)</div>`;
 
                 if (images.length > 0) {
+                    // Get selected image indices for this version
+                    const selectedIndices = currentVer.selectedImageIndices || [];
+
                     contentHtml += '<div class="message-images">';
                     images.forEach((imgUrl, imgIndex) => {
-                        contentHtml += `<img src="${imgUrl}" alt="Generated image" class="message-image clickable-image"
-                                             data-msg-index="${index}" data-img-index="${imgIndex}" data-image-type="generated">`;
+                        const isSelected = selectedIndices.includes(imgIndex);
+                        contentHtml += `
+                            <div class="generated-image-container">
+                                <img src="${imgUrl}" alt="Generated image" class="message-image clickable-image ${isSelected ? 'selected' : ''}"
+                                     data-msg-index="${index}" data-img-index="${imgIndex}" data-image-type="generated">
+                                <button class="image-select-btn ${isSelected ? 'selected' : ''}"
+                                        data-msg-index="${index}" data-img-index="${imgIndex}"
+                                        title="Click to ${isSelected ? 'deselect' : 'select'} for context">
+                                    ${isSelected ? '✓ Selected' : 'Select'}
+                                </button>
+                            </div>`;
                     });
                     contentHtml += '</div>';
                 }
@@ -568,6 +580,16 @@ class GeminiChat {
                 const imgIndex = parseInt(img.dataset.imgIndex);
                 const imageType = img.dataset.imageType;
                 this.openLightbox(msgIndex, imgIndex, imageType);
+            });
+        });
+
+        // Image selection buttons
+        this.elements.messagesContainer.querySelectorAll('.image-select-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const msgIndex = parseInt(btn.dataset.msgIndex);
+                const imgIndex = parseInt(btn.dataset.imgIndex);
+                this.toggleImageSelection(msgIndex, imgIndex);
             });
         });
     }
@@ -1027,12 +1049,35 @@ class GeminiChat {
             if (imageContextOptions.includeLastGeneratedAllVersions) {
                 // All versions of last generated
                 versions.forEach(ver => {
-                    allImages.push(...(ver.images || []));
+                    const selectedIndices = ver.selectedImageIndices;
+                    if (selectedIndices && selectedIndices.length > 0) {
+                        // Only include selected images
+                        selectedIndices.forEach(idx => {
+                            if (ver.images && ver.images[idx]) {
+                                allImages.push(ver.images[idx]);
+                            }
+                        });
+                    } else {
+                        // No selection, include all images
+                        allImages.push(...(ver.images || []));
+                    }
                 });
             } else {
                 // Current version only
                 const currentVersion = lastMsg.currentVersion !== undefined ? lastMsg.currentVersion : 0;
-                allImages.push(...(versions[currentVersion]?.images || []));
+                const currentVer = versions[currentVersion];
+                const selectedIndices = currentVer?.selectedImageIndices;
+                if (selectedIndices && selectedIndices.length > 0) {
+                    // Only include selected images
+                    selectedIndices.forEach(idx => {
+                        if (currentVer.images && currentVer.images[idx]) {
+                            allImages.push(currentVer.images[idx]);
+                        }
+                    });
+                } else {
+                    // No selection, include all images
+                    allImages.push(...(currentVer?.images || []));
+                }
             }
         }
 
@@ -1047,12 +1092,35 @@ class GeminiChat {
                     if (imageContextOptions.includePreviousGeneratedAllVersions) {
                         // All versions
                         versions.forEach(ver => {
-                            allImages.push(...(ver.images || []));
+                            const selectedIndices = ver.selectedImageIndices;
+                            if (selectedIndices && selectedIndices.length > 0) {
+                                // Only include selected images
+                                selectedIndices.forEach(idx => {
+                                    if (ver.images && ver.images[idx]) {
+                                        allImages.push(ver.images[idx]);
+                                    }
+                                });
+                            } else {
+                                // No selection, include all images
+                                allImages.push(...(ver.images || []));
+                            }
                         });
                     } else {
                         // Current version only
                         const currentVersion = msg.currentVersion !== undefined ? msg.currentVersion : 0;
-                        allImages.push(...(versions[currentVersion]?.images || []));
+                        const currentVer = versions[currentVersion];
+                        const selectedIndices = currentVer?.selectedImageIndices;
+                        if (selectedIndices && selectedIndices.length > 0) {
+                            // Only include selected images
+                            selectedIndices.forEach(idx => {
+                                if (currentVer.images && currentVer.images[idx]) {
+                                    allImages.push(currentVer.images[idx]);
+                                }
+                            });
+                        } else {
+                            // No selection, include all images
+                            allImages.push(...(currentVer?.images || []));
+                        }
                     }
                 }
             }
@@ -1174,6 +1242,34 @@ class GeminiChat {
     removeInputImage(msgIndex, imgIndex) {
         const chat = this.chats[this.currentChatId];
         chat.messages[msgIndex].inputImages.splice(imgIndex, 1);
+        this.saveChats();
+        this.renderMessages();
+    }
+
+    toggleImageSelection(msgIndex, imgIndex) {
+        const chat = this.chats[this.currentChatId];
+        const assistantMessage = chat.messages[msgIndex];
+
+        // Ensure versions structure
+        this.ensureVersionsStructure(assistantMessage);
+
+        const currentVersion = assistantMessage.versions[assistantMessage.currentVersion];
+
+        // Initialize selectedImageIndices if not exists
+        if (!currentVersion.selectedImageIndices) {
+            currentVersion.selectedImageIndices = [];
+        }
+
+        // Toggle selection
+        const selectionIndex = currentVersion.selectedImageIndices.indexOf(imgIndex);
+        if (selectionIndex === -1) {
+            // Not selected, add it
+            currentVersion.selectedImageIndices.push(imgIndex);
+        } else {
+            // Already selected, remove it
+            currentVersion.selectedImageIndices.splice(selectionIndex, 1);
+        }
+
         this.saveChats();
         this.renderMessages();
     }
@@ -1770,10 +1866,25 @@ class GeminiChat {
             this.ensureVersionsStructure(lastMsg);
             const versions = lastMsg.versions;
             const currentVersion = lastMsg.currentVersion !== undefined ? lastMsg.currentVersion : 0;
-            lastGeneratedCount = versions[currentVersion]?.images?.length || 0;
+            const currentVer = versions[currentVersion];
 
-            // All versions
-            lastGeneratedAllCount = versions.reduce((sum, ver) => sum + (ver.images?.length || 0), 0);
+            // Count selected images or all images if no selection
+            const selectedIndices = currentVer?.selectedImageIndices;
+            if (selectedIndices && selectedIndices.length > 0) {
+                lastGeneratedCount = selectedIndices.length;
+            } else {
+                lastGeneratedCount = currentVer?.images?.length || 0;
+            }
+
+            // All versions - count selected or all for each version
+            lastGeneratedAllCount = versions.reduce((sum, ver) => {
+                const selIndices = ver.selectedImageIndices;
+                if (selIndices && selIndices.length > 0) {
+                    return sum + selIndices.length;
+                } else {
+                    return sum + (ver.images?.length || 0);
+                }
+            }, 0);
         }
 
         // Count previous generated images (before last)
@@ -1785,10 +1896,25 @@ class GeminiChat {
                 this.ensureVersionsStructure(msg);
                 const msgVersions = msg.versions;
                 const currentVersion = msg.currentVersion !== undefined ? msg.currentVersion : 0;
-                prevGeneratedCount += msgVersions[currentVersion]?.images?.length || 0;
+                const currentVer = msgVersions[currentVersion];
 
-                // All versions
-                prevGeneratedAllCount += msgVersions.reduce((sum, ver) => sum + (ver.images?.length || 0), 0);
+                // Count selected images or all images if no selection
+                const selectedIndices = currentVer?.selectedImageIndices;
+                if (selectedIndices && selectedIndices.length > 0) {
+                    prevGeneratedCount += selectedIndices.length;
+                } else {
+                    prevGeneratedCount += currentVer?.images?.length || 0;
+                }
+
+                // All versions - count selected or all for each version
+                prevGeneratedAllCount += msgVersions.reduce((sum, ver) => {
+                    const selIndices = ver.selectedImageIndices;
+                    if (selIndices && selIndices.length > 0) {
+                        return sum + selIndices.length;
+                    } else {
+                        return sum + (ver.images?.length || 0);
+                    }
+                }, 0);
             }
         }
 
@@ -1894,10 +2020,25 @@ class GeminiChat {
             this.ensureVersionsStructure(lastMsg);
             const versions = lastMsg.versions;
             const currentVersion = lastMsg.currentVersion !== undefined ? lastMsg.currentVersion : 0;
-            lastGeneratedCount = versions[currentVersion]?.images?.length || 0;
+            const currentVer = versions[currentVersion];
 
-            // All versions
-            lastGeneratedAllCount = versions.reduce((sum, ver) => sum + (ver.images?.length || 0), 0);
+            // Count selected images or all images if no selection
+            const selectedIndices = currentVer?.selectedImageIndices;
+            if (selectedIndices && selectedIndices.length > 0) {
+                lastGeneratedCount = selectedIndices.length;
+            } else {
+                lastGeneratedCount = currentVer?.images?.length || 0;
+            }
+
+            // All versions - count selected or all for each version
+            lastGeneratedAllCount = versions.reduce((sum, ver) => {
+                const selIndices = ver.selectedImageIndices;
+                if (selIndices && selIndices.length > 0) {
+                    return sum + selIndices.length;
+                } else {
+                    return sum + (ver.images?.length || 0);
+                }
+            }, 0);
         }
 
         // Count previous generated images (before last, up to editIndex)
@@ -1909,10 +2050,25 @@ class GeminiChat {
                 this.ensureVersionsStructure(msg);
                 const msgVersions = msg.versions;
                 const currentVersion = msg.currentVersion !== undefined ? msg.currentVersion : 0;
-                prevGeneratedCount += msgVersions[currentVersion]?.images?.length || 0;
+                const currentVer = msgVersions[currentVersion];
 
-                // All versions
-                prevGeneratedAllCount += msgVersions.reduce((sum, ver) => sum + (ver.images?.length || 0), 0);
+                // Count selected images or all images if no selection
+                const selectedIndices = currentVer?.selectedImageIndices;
+                if (selectedIndices && selectedIndices.length > 0) {
+                    prevGeneratedCount += selectedIndices.length;
+                } else {
+                    prevGeneratedCount += currentVer?.images?.length || 0;
+                }
+
+                // All versions - count selected or all for each version
+                prevGeneratedAllCount += msgVersions.reduce((sum, ver) => {
+                    const selIndices = ver.selectedImageIndices;
+                    if (selIndices && selIndices.length > 0) {
+                        return sum + selIndices.length;
+                    } else {
+                        return sum + (ver.images?.length || 0);
+                    }
+                }, 0);
             }
         }
 
