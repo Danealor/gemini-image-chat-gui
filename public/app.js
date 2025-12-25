@@ -463,11 +463,12 @@ class GeminiChat {
             if (msg.error) {
                 contentHtml = `<div class="error-message"><strong>Error:</strong> ${this.escapeHtml(msg.error)}</div>`;
             } else {
-                // Handle multiple generations (versions)
-                const generations = msg.generations || [{ images: msg.images }];
+                // Handle multiple versions (different prompts)
+                this.ensureVersionsStructure(msg);
+                const versions = msg.versions;
                 const currentVersion = msg.currentVersion !== undefined ? msg.currentVersion : 0;
-                const currentGen = generations[currentVersion];
-                const totalVersions = generations.length;
+                const currentVer = versions[currentVersion];
+                const totalVersions = versions.length;
 
                 // Version navigation
                 let versionNavHtml = '';
@@ -581,9 +582,10 @@ class GeminiChat {
             if (images.length === 0) return;
             this.showLightbox(images, imgIndex, 'Input Images', msgIndex, imageType);
         } else if (imageType === 'generated') {
-            const generations = msg.generations || [{ images: msg.images }];
+            this.ensureVersionsStructure(msg);
+            const versions = msg.versions;
             const currentVersion = msg.currentVersion !== undefined ? msg.currentVersion : 0;
-            this.showGeneratedLightbox(msgIndex, currentVersion, imgIndex, generations);
+            this.showGeneratedLightbox(msgIndex, currentVersion, imgIndex, versions);
         }
     }
 
@@ -654,7 +656,7 @@ class GeminiChat {
         document.addEventListener('keydown', keyHandler);
     }
 
-    showGeneratedLightbox(msgIndex, currentVersion, currentImageIndex, generations) {
+    showGeneratedLightbox(msgIndex, currentVersion, currentImageIndex, versions) {
         const lightbox = document.createElement('div');
         lightbox.className = 'lightbox';
 
@@ -662,8 +664,8 @@ class GeminiChat {
         let imageIdx = currentImageIndex;
 
         const render = () => {
-            const images = generations[versionIdx]?.images || [];
-            const totalVersions = generations.length;
+            const images = versions[versionIdx]?.images || [];
+            const totalVersions = versions.length;
 
             lightbox.innerHTML = `
                 <div class="lightbox-content">
@@ -703,7 +705,7 @@ class GeminiChat {
 
             nextBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const images = generations[versionIdx]?.images || [];
+                const images = versions[versionIdx]?.images || [];
                 if (imageIdx < images.length - 1) {
                     imageIdx++;
                     render();
@@ -718,7 +720,7 @@ class GeminiChat {
                         versionIdx--;
                         imageIdx = 0; // Reset to first image of new version
                         render();
-                    } else if (action === 'next' && versionIdx < generations.length - 1) {
+                    } else if (action === 'next' && versionIdx < versions.length - 1) {
                         versionIdx++;
                         imageIdx = 0; // Reset to first image of new version
                         render();
@@ -741,7 +743,7 @@ class GeminiChat {
 
         // Keyboard navigation
         const keyHandler = (e) => {
-            const images = generations[versionIdx]?.images || [];
+            const images = versions[versionIdx]?.images || [];
             if (e.key === 'Escape') {
                 lightbox.remove();
                 document.removeEventListener('keydown', keyHandler);
@@ -763,12 +765,10 @@ class GeminiChat {
         const chat = this.chats[this.currentChatId];
         const msg = chat.messages[msgIndex];
 
-        if (!msg.generations) {
-            msg.generations = [{ images: msg.images }];
-        }
+        this.ensureVersionsStructure(msg);
 
         const newVersion = (msg.currentVersion || 0) + delta;
-        if (newVersion >= 0 && newVersion < msg.generations.length) {
+        if (newVersion >= 0 && newVersion < msg.versions.length) {
             msg.currentVersion = newVersion;
             this.saveChats();
 
@@ -783,10 +783,10 @@ class GeminiChat {
 
                     setTimeout(() => {
                         // Update the content
-                        const generations = msg.generations || [{ images: msg.images }];
-                        const currentGen = generations[newVersion];
-                        const images = currentGen?.images || [];
-                        const totalVersions = generations.length;
+                        const versions = msg.versions;
+                        const currentVer = versions[newVersion];
+                        const images = currentVer?.images || [];
+                        const totalVersions = versions.length;
 
                         let contentHtml = `<div class="message-content">Generated ${images.length} image(s)</div>`;
 
@@ -820,7 +820,7 @@ class GeminiChat {
         }
     }
 
-    // Regenerate from an assistant message (adds a new version)
+    // Regenerate from an assistant message (adds more images to current version)
     async regenerateAtIndex(assistantMsgIndex) {
         const chat = this.chats[this.currentChatId];
 
@@ -834,10 +834,8 @@ class GeminiChat {
         const userMessage = chat.messages[userMsgIndex];
         const assistantMessage = chat.messages[assistantMsgIndex];
 
-        // Initialize generations array if not exists
-        if (!assistantMessage.generations) {
-            assistantMessage.generations = [{ images: assistantMessage.images }];
-        }
+        // Ensure versions structure
+        this.ensureVersionsStructure(assistantMessage);
 
         // Show loading indicator
         const messageElement = this.elements.messagesContainer.querySelector(`.message[data-index="${assistantMsgIndex}"]`);
@@ -849,11 +847,11 @@ class GeminiChat {
             }
         }
 
-        // Generate new version
-        await this.generateNewVersion(userMessage, assistantMessage, assistantMsgIndex);
+        // Add more images to current version
+        await this.addToCurrentVersion(userMessage, assistantMessage, assistantMsgIndex);
     }
 
-    async generateNewVersion(userMessage, assistantMessage, assistantMsgIndex) {
+    async addToCurrentVersion(userMessage, assistantMessage, assistantMsgIndex) {
         // Show loading state
         this.elements.sendBtn.disabled = true;
 
@@ -915,7 +913,9 @@ class GeminiChat {
 
             // Process and save generated images to server
             const generatedImages = [];
-            const versionIndex = assistantMessage.generations.length;
+            const versionIndex = assistantMessage.currentVersion;
+            const currentVersion = assistantMessage.versions[versionIndex];
+            const existingImageCount = currentVersion.images?.length || 0;
             const cacheBuster = Date.now(); // Add cache-busting timestamp
 
             // Handle different API response formats
@@ -923,6 +923,7 @@ class GeminiChat {
 
             for (let i = 0; i < apiImages.length; i++) {
                 const image = apiImages[i];
+                const imageIndex = existingImageCount + i; // Append to existing images
 
                 // Check if it's base64 or URL
                 if (image.startsWith('data:')) {
@@ -933,7 +934,7 @@ class GeminiChat {
                         this.currentChatId,
                         assistantMsgIndex,
                         versionIndex,
-                        i
+                        imageIndex
                     );
                     generatedImages.push(`${serverUrl}?t=${cacheBuster}`);
                 } else if (image.startsWith('http')) {
@@ -944,7 +945,7 @@ class GeminiChat {
                         this.currentChatId,
                         assistantMsgIndex,
                         versionIndex,
-                        i
+                        imageIndex
                     );
                     generatedImages.push(`${serverUrl}?t=${cacheBuster}`);
                 } else {
@@ -952,10 +953,9 @@ class GeminiChat {
                 }
             }
 
-            // Add new generation version
-            assistantMessage.generations.push({ images: generatedImages, timestamp: new Date().toISOString() });
-            assistantMessage.currentVersion = assistantMessage.generations.length - 1;
-            assistantMessage.images = generatedImages; // Keep for backwards compatibility
+            // Append new images to current version
+            currentVersion.images = [...(currentVersion.images || []), ...generatedImages];
+            assistantMessage.images = currentVersion.images; // Keep for backwards compatibility
 
             await this.saveChats();
             this.renderMessages();
@@ -1021,17 +1021,18 @@ class GeminiChat {
         // 1. Include last generated images
         if (imageContextOptions.includeLastGenerated && lastAssistantIndex >= 0) {
             const lastMsg = chat.messages[lastAssistantIndex];
-            const generations = lastMsg.generations || [{ images: lastMsg.images }];
+            this.ensureVersionsStructure(lastMsg);
+            const versions = lastMsg.versions;
 
             if (imageContextOptions.includeLastGeneratedAllVersions) {
                 // All versions of last generated
-                generations.forEach(gen => {
-                    allImages.push(...(gen.images || []));
+                versions.forEach(ver => {
+                    allImages.push(...(ver.images || []));
                 });
             } else {
                 // Current version only
                 const currentVersion = lastMsg.currentVersion !== undefined ? lastMsg.currentVersion : 0;
-                allImages.push(...(generations[currentVersion]?.images || []));
+                allImages.push(...(versions[currentVersion]?.images || []));
             }
         }
 
@@ -1040,17 +1041,18 @@ class GeminiChat {
             for (let i = 0; i < upToUserMsgIndex; i++) {
                 const msg = chat.messages[i];
                 if (msg.role === 'assistant' && !msg.error && i !== lastAssistantIndex) {
-                    const generations = msg.generations || [{ images: msg.images }];
+                    this.ensureVersionsStructure(msg);
+                    const versions = msg.versions;
 
                     if (imageContextOptions.includePreviousGeneratedAllVersions) {
                         // All versions
-                        generations.forEach(gen => {
-                            allImages.push(...(gen.images || []));
+                        versions.forEach(ver => {
+                            allImages.push(...(ver.images || []));
                         });
                     } else {
                         // Current version only
                         const currentVersion = msg.currentVersion !== undefined ? msg.currentVersion : 0;
-                        allImages.push(...(generations[currentVersion]?.images || []));
+                        allImages.push(...(versions[currentVersion]?.images || []));
                     }
                 }
             }
@@ -1148,14 +1150,24 @@ class GeminiChat {
         chat.messages[index].imageContextOptions = imageContextOptions;
         chat.messages[index].isEditing = false;
 
-        // Remove all messages after this one (the response) - this clears old generations
-        chat.messages = chat.messages.slice(0, index + 1);
+        // Check if there's an assistant response after this message
+        const hasAssistantResponse = index + 1 < chat.messages.length && chat.messages[index + 1].role === 'assistant';
 
-        // Save and render immediately to close edit mode and clear old generations
+        if (hasAssistantResponse) {
+            // Ensure versions structure on assistant message
+            const assistantMessage = chat.messages[index + 1];
+            this.ensureVersionsStructure(assistantMessage);
+
+            // Create a new version for the edited prompt (keep old versions)
+            assistantMessage.currentVersion = assistantMessage.versions.length;
+            assistantMessage.versions.push({ images: [] });
+        }
+
+        // Save and render immediately to close edit mode
         await this.saveChats();
         this.renderMessages();
 
-        // Regenerate with new prompt
+        // Generate new version with new prompt
         await this.generateResponseForUserMessage(index);
     }
 
@@ -1681,11 +1693,11 @@ class GeminiChat {
                 }
             }
 
-            // Add assistant message with generations array
+            // Add assistant message with versions array
             const assistantMessage = {
                 role: 'assistant',
                 images: generatedImages,
-                generations: [{ images: generatedImages, timestamp: new Date().toISOString() }],
+                versions: [{ images: generatedImages }],
                 currentVersion: 0,
                 timestamp: new Date().toISOString()
             };
@@ -1755,12 +1767,13 @@ class GeminiChat {
         let lastGeneratedAllCount = 0;
         if (lastAssistantIndex >= 0) {
             const lastMsg = messages[lastAssistantIndex];
-            const generations = lastMsg.generations || [{ images: lastMsg.images }];
+            this.ensureVersionsStructure(lastMsg);
+            const versions = lastMsg.versions;
             const currentVersion = lastMsg.currentVersion !== undefined ? lastMsg.currentVersion : 0;
-            lastGeneratedCount = generations[currentVersion]?.images?.length || 0;
+            lastGeneratedCount = versions[currentVersion]?.images?.length || 0;
 
             // All versions
-            lastGeneratedAllCount = generations.reduce((sum, gen) => sum + (gen.images?.length || 0), 0);
+            lastGeneratedAllCount = versions.reduce((sum, ver) => sum + (ver.images?.length || 0), 0);
         }
 
         // Count previous generated images (before last)
@@ -1769,12 +1782,13 @@ class GeminiChat {
         for (let i = 0; i < messages.length; i++) {
             if (messages[i].role === 'assistant' && !messages[i].error && i !== lastAssistantIndex) {
                 const msg = messages[i];
-                const generations = msg.generations || [{ images: msg.images }];
+                this.ensureVersionsStructure(msg);
+                const msgVersions = msg.versions;
                 const currentVersion = msg.currentVersion !== undefined ? msg.currentVersion : 0;
-                prevGeneratedCount += generations[currentVersion]?.images?.length || 0;
+                prevGeneratedCount += msgVersions[currentVersion]?.images?.length || 0;
 
                 // All versions
-                prevGeneratedAllCount += generations.reduce((sum, gen) => sum + (gen.images?.length || 0), 0);
+                prevGeneratedAllCount += msgVersions.reduce((sum, ver) => sum + (ver.images?.length || 0), 0);
             }
         }
 
@@ -1877,12 +1891,13 @@ class GeminiChat {
         let lastGeneratedAllCount = 0;
         if (lastAssistantIndex >= 0) {
             const lastMsg = messages[lastAssistantIndex];
-            const generations = lastMsg.generations || [{ images: lastMsg.images }];
+            this.ensureVersionsStructure(lastMsg);
+            const versions = lastMsg.versions;
             const currentVersion = lastMsg.currentVersion !== undefined ? lastMsg.currentVersion : 0;
-            lastGeneratedCount = generations[currentVersion]?.images?.length || 0;
+            lastGeneratedCount = versions[currentVersion]?.images?.length || 0;
 
             // All versions
-            lastGeneratedAllCount = generations.reduce((sum, gen) => sum + (gen.images?.length || 0), 0);
+            lastGeneratedAllCount = versions.reduce((sum, ver) => sum + (ver.images?.length || 0), 0);
         }
 
         // Count previous generated images (before last, up to editIndex)
@@ -1891,12 +1906,13 @@ class GeminiChat {
         for (let i = 0; i < editIndex; i++) {
             if (messages[i].role === 'assistant' && !messages[i].error && i !== lastAssistantIndex) {
                 const msg = messages[i];
-                const generations = msg.generations || [{ images: msg.images }];
+                this.ensureVersionsStructure(msg);
+                const msgVersions = msg.versions;
                 const currentVersion = msg.currentVersion !== undefined ? msg.currentVersion : 0;
-                prevGeneratedCount += generations[currentVersion]?.images?.length || 0;
+                prevGeneratedCount += msgVersions[currentVersion]?.images?.length || 0;
 
                 // All versions
-                prevGeneratedAllCount += generations.reduce((sum, gen) => sum + (gen.images?.length || 0), 0);
+                prevGeneratedAllCount += msgVersions.reduce((sum, ver) => sum + (ver.images?.length || 0), 0);
             }
         }
 
@@ -2073,6 +2089,27 @@ class GeminiChat {
 
     scrollToBottom() {
         this.elements.messagesContainer.scrollTop = this.elements.messagesContainer.scrollHeight;
+    }
+
+    // Helper: Ensure backward compatibility by converting old 'generations' to 'versions'
+    ensureVersionsStructure(msg) {
+        if (msg.role !== 'assistant') return;
+
+        // Convert old generations to versions
+        if (msg.generations && !msg.versions) {
+            msg.versions = msg.generations;
+            delete msg.generations;
+        }
+
+        // Initialize versions if not exists
+        if (!msg.versions) {
+            msg.versions = [{ images: msg.images || [] }];
+        }
+
+        // Ensure currentVersion exists
+        if (msg.currentVersion === undefined) {
+            msg.currentVersion = 0;
+        }
     }
 }
 
