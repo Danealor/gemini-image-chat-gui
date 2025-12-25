@@ -58,6 +58,38 @@ class GeminiChat {
             }
         });
 
+        // Drag & drop for images
+        this.elements.promptInput.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.elements.promptInput.classList.add('drag-over');
+        });
+
+        this.elements.promptInput.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        this.elements.promptInput.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.target === this.elements.promptInput) {
+                this.elements.promptInput.classList.remove('drag-over');
+            }
+        });
+
+        this.elements.promptInput.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.elements.promptInput.classList.remove('drag-over');
+            this.handleImageDrop(e.dataTransfer);
+        });
+
+        // Paste for images
+        this.elements.promptInput.addEventListener('paste', (e) => {
+            this.handleImagePaste(e);
+        });
+
         this.elements.fileInput.addEventListener('change', (e) => this.handleFileUpload(e));
         this.elements.imageUrlInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
@@ -1163,9 +1195,8 @@ class GeminiChat {
         const closeBtn = modal.querySelector('.modal-close-btn');
         const uploadLabel = modal.querySelector('.modal-upload-btn');
 
-        // Handle click on upload button
-        uploadLabel.addEventListener('click', (e) => {
-            e.preventDefault();
+        // Handle click on upload button - no preventDefault needed, let label work naturally
+        uploadLabel.addEventListener('click', () => {
             fileInput.click();
         });
 
@@ -1296,6 +1327,85 @@ class GeminiChat {
         });
 
         event.target.value = '';
+    }
+
+    handleImageDrop(dataTransfer) {
+        const files = Array.from(dataTransfer.files).filter(f => f.type.startsWith('image/'));
+
+        if (files.length === 0) {
+            // Check if there are URLs being dragged
+            const url = dataTransfer.getData('text/uri-list') || dataTransfer.getData('text/plain');
+            if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                this.imageUrls.push(url);
+                this.displayUrlItem(url);
+                this.updateImageContextCounts();
+                this.showNotification(`Added image URL from drop`, 'success');
+            }
+            return;
+        }
+
+        files.forEach(file => {
+            this.uploadedFiles.push(file);
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const base64 = e.target.result;
+                this.uploadedFilesData.push(base64);
+                this.displayImagePreview(base64, this.uploadedFilesData.length - 1);
+                this.updateImageContextCounts();
+            };
+            reader.readAsDataURL(file);
+        });
+
+        this.showNotification(`Added ${files.length} image${files.length > 1 ? 's' : ''} from drop`, 'success');
+    }
+
+    handleImagePaste(event) {
+        const items = event.clipboardData?.items;
+        if (!items) return;
+
+        let foundImage = false;
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+
+            // Handle pasted images
+            if (item.type.startsWith('image/')) {
+                event.preventDefault();
+                foundImage = true;
+
+                const file = item.getAsFile();
+                if (file) {
+                    this.uploadedFiles.push(file);
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const base64 = e.target.result;
+                        this.uploadedFilesData.push(base64);
+                        this.displayImagePreview(base64, this.uploadedFilesData.length - 1);
+                        this.updateImageContextCounts();
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+            // Handle pasted URLs
+            else if (item.type === 'text/plain' && !foundImage) {
+                item.getAsString((text) => {
+                    // Only treat as image URL if it looks like an image URL
+                    if (text.match(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$/i)) {
+                        event.preventDefault();
+                        this.imageUrls.push(text);
+                        this.displayUrlItem(text);
+                        this.updateImageContextCounts();
+                        this.showNotification('Added image URL from paste', 'success');
+                    }
+                });
+            }
+        }
+
+        if (foundImage) {
+            this.showNotification('Added image from paste', 'success');
+        }
     }
 
     displayImagePreview(base64, index) {

@@ -725,6 +725,12 @@ header h1 {
     color: #666;
 }
 
+#prompt-input.drag-over {
+    border: 2px dashed #667eea;
+    background: #3a3a5a;
+    box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+}
+
 .generate-btn-area {
     display: flex;
     margin-top: 12px;
