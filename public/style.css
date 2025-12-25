@@ -128,19 +128,36 @@ body {
 header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 16px 30px;
-    text-align: center;
+    padding: 12px 30px;
     flex-shrink: 0;
 }
 
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1350px;
+    margin: 0 auto;
+}
+
+.header-title {
+    text-align: left;
+}
+
 header h1 {
-    font-size: 24px;
-    margin-bottom: 4px;
+    font-size: 22px;
+    margin-bottom: 2px;
 }
 
 .subtitle {
-    font-size: 13px;
+    font-size: 12px;
     opacity: 0.9;
+}
+
+.header-settings {
+    display: flex;
+    gap: 15px;
+    align-items: center;
 }
 
 .chat-container {
@@ -370,9 +387,11 @@ header h1 {
 }
 
 .edit-actions {
-    display: flex;
-    gap: 8px;
     margin-top: 10px;
+}
+
+.edit-actions > button {
+    margin-right: 8px;
 }
 
 .edit-save-btn {
@@ -395,6 +414,13 @@ header h1 {
     cursor: pointer;
 }
 
+.edit-note {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #888;
+    font-style: italic;
+}
+
 /* Input Area */
 .input-area {
     border-top: 1px solid #2a2a4a;
@@ -408,13 +434,6 @@ header h1 {
     margin: 0 auto;
 }
 
-.settings-bar {
-    display: flex;
-    gap: 20px;
-    margin-bottom: 15px;
-    flex-wrap: wrap;
-}
-
 .setting-group {
     display: flex;
     align-items: center;
@@ -422,17 +441,22 @@ header h1 {
 }
 
 .setting-group label {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
-    color: #888;
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .setting-group select,
 .setting-group input[type="number"] {
     padding: 6px 12px;
-    border: 1px solid #3a3a5a;
+    border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 6px;
-    font-size: 13px;
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.setting-group select option {
     background: #2a2a4a;
     color: #e0e0e0;
 }
@@ -446,13 +470,10 @@ header h1 {
 }
 
 .upload-options {
-    margin-bottom: 10px;
-}
-
-.upload-section {
     display: flex;
     align-items: center;
     gap: 10px;
+    margin-bottom: 10px;
     flex-wrap: wrap;
 }
 
@@ -477,6 +498,21 @@ header h1 {
 
 .upload-hint {
     font-size: 12px;
+    color: #888;
+}
+
+.inline-url-input {
+    flex: 1;
+    min-width: 250px;
+    padding: 8px 12px;
+    border: 1px solid #3a3a5a;
+    border-radius: 6px;
+    font-size: 13px;
+    background: #2a2a4a;
+    color: #e0e0e0;
+}
+
+.inline-url-input::placeholder {
     color: #666;
 }
 
@@ -567,6 +603,103 @@ header h1 {
     padding: 3px 8px;
     cursor: pointer;
     font-size: 11px;
+}
+
+/* Image Context Section */
+.image-context-section {
+    margin-top: 15px;
+    padding: 12px;
+    background: #2a2a4a;
+    border: 1px solid #3a3a5a;
+    border-radius: 8px;
+}
+
+.total-image-count {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e0e0e0;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.total-image-count:hover {
+    background: #3a3a5a;
+}
+
+.total-image-count.over-limit {
+    color: #ff6b6b;
+}
+
+.total-image-count.over-limit #total-image-count {
+    color: #ff6b6b;
+}
+
+.dropdown-arrow {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+.dropdown-arrow.open {
+    transform: rotate(180deg);
+}
+
+.context-options-panel {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #3a3a5a;
+}
+
+.context-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    cursor: pointer;
+    font-size: 13px;
+    color: #e0e0e0;
+}
+
+.context-option input[type="checkbox"] {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+.context-option span:nth-child(2) {
+    flex: 1;
+}
+
+.context-option-sub {
+    padding-left: 24px;
+    font-size: 12px;
+    color: #ccc;
+}
+
+.image-count {
+    background: #3a3a5a;
+    color: #888;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    min-width: 20px;
+    text-align: center;
+}
+
+/* Edit Context Section */
+.edit-context-section {
+    margin-top: 12px;
+    margin-bottom: 12px;
+}
+
+.edit-context-toggle.over-limit,
+.edit-context-toggle.over-limit .edit-total-count {
+    color: #ff6b6b !important;
 }
 
 .prompt-area {
@@ -682,6 +815,58 @@ header h1 {
 
     .sidebar-toggle {
         display: block;
+    }
+
+    /* Header adjustments for mobile */
+    header {
+        padding: 10px 15px;
+    }
+
+    .header-content {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .header-title h1 {
+        font-size: 20px;
+    }
+
+    .header-title .subtitle {
+        font-size: 11px;
+    }
+
+    .header-settings {
+        width: 100%;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .setting-group {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .setting-group select,
+    .setting-group input[type="number"] {
+        flex: 1;
+        max-width: none;
+    }
+
+    /* Upload options inline layout for mobile */
+    .upload-options {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .upload-hint {
+        display: none;
+    }
+
+    .inline-url-input {
+        width: 100%;
+        min-width: auto;
     }
 
     .messages {

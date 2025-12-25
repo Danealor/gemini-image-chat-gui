@@ -21,7 +21,25 @@ class GeminiChat {
             newChatBtn: document.getElementById('new-chat-btn'),
             historyList: document.getElementById('history-list'),
             sidebar: document.getElementById('sidebar'),
-            sidebarToggle: document.getElementById('sidebar-toggle')
+            sidebarToggle: document.getElementById('sidebar-toggle'),
+            // Image context options
+            imageContextSection: document.getElementById('image-context-section'),
+            ctxLastGenerated: document.getElementById('ctx-last-generated'),
+            ctxLastGeneratedAll: document.getElementById('ctx-last-generated-all'),
+            ctxLastGeneratedAllContainer: document.getElementById('ctx-last-generated-all-container'),
+            ctxPrevGenerated: document.getElementById('ctx-prev-generated'),
+            ctxPrevGeneratedAll: document.getElementById('ctx-prev-generated-all'),
+            ctxPrevGeneratedAllContainer: document.getElementById('ctx-prev-generated-all-container'),
+            ctxFirstUserImages: document.getElementById('ctx-first-user-images'),
+            ctxAllUserImages: document.getElementById('ctx-all-user-images'),
+            countLastGenerated: document.getElementById('count-last-generated'),
+            countLastGeneratedAll: document.getElementById('count-last-generated-all'),
+            countPrevGenerated: document.getElementById('count-prev-generated'),
+            countPrevGeneratedAll: document.getElementById('count-prev-generated-all'),
+            countFirstUser: document.getElementById('count-first-user'),
+            countAllUser: document.getElementById('count-all-user'),
+            totalImageCount: document.getElementById('total-image-count'),
+            totalImageCountContainer: document.querySelector('.total-image-count')
         };
 
         this.init();
@@ -50,6 +68,35 @@ class GeminiChat {
 
         this.elements.newChatBtn.addEventListener('click', () => this.createNewChat());
         this.elements.sidebarToggle.addEventListener('click', () => this.toggleSidebar());
+
+        // Image context checkbox listeners
+        const imageContextCheckboxes = [
+            this.elements.ctxLastGenerated,
+            this.elements.ctxLastGeneratedAll,
+            this.elements.ctxPrevGenerated,
+            this.elements.ctxPrevGeneratedAll,
+            this.elements.ctxFirstUserImages,
+            this.elements.ctxAllUserImages
+        ];
+
+        imageContextCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => this.updateImageContextCounts());
+        });
+
+        // Image context dropdown toggle
+        const contextToggle = document.getElementById('context-toggle');
+        const contextPanel = document.getElementById('context-options-panel');
+        const dropdownArrow = contextToggle?.querySelector('.dropdown-arrow');
+
+        if (contextToggle && contextPanel) {
+            contextToggle.addEventListener('click', () => {
+                const isOpen = contextPanel.style.display !== 'none';
+                contextPanel.style.display = isOpen ? 'none' : 'block';
+                if (dropdownArrow) {
+                    dropdownArrow.classList.toggle('open', !isOpen);
+                }
+            });
+        }
 
         // Check API health
         this.checkHealth();
@@ -264,6 +311,7 @@ class GeminiChat {
                     <h2>Create Amazing Images</h2>
                     <p>Enter a prompt below to generate images, or upload existing images to edit them with AI.</p>
                 </div>`;
+            this.showImageContextSection();
             return;
         }
 
@@ -275,6 +323,65 @@ class GeminiChat {
         this.elements.messagesContainer.innerHTML = html;
         this.attachMessageHandlers();
         this.scrollToBottom();
+        this.showImageContextSection();
+    }
+
+    renderImageContextOptionsForEdit(msg, msgIndex) {
+        // Get current options from message or use defaults
+        const options = msg.imageContextOptions || {
+            includeLastGenerated: true,
+            includeLastGeneratedAllVersions: false,
+            includePreviousGenerated: false,
+            includePreviousGeneratedAllVersions: false,
+            includeFirstUserImages: false,
+            includeAllUserImages: false
+        };
+
+        return `
+            <div class="image-context-section edit-context-section" data-edit-index="${msgIndex}" style="margin-top: 12px;">
+                <div class="total-image-count edit-context-toggle" data-edit-index="${msgIndex}">
+                    <span>Total: <span class="edit-total-count" data-edit-index="${msgIndex}">0</span> / 14 images</span>
+                    <span class="dropdown-arrow">▼</span>
+                </div>
+
+                <div class="context-options-panel" data-edit-index="${msgIndex}" style="display: none;">
+                    <label class="context-option">
+                        <input type="checkbox" class="edit-ctx-last-generated" data-edit-index="${msgIndex}" ${options.includeLastGenerated ? 'checked' : ''}>
+                        <span>Include last generated image</span>
+                        <span class="image-count edit-count-last-generated" data-edit-index="${msgIndex}">0</span>
+                    </label>
+
+                    <label class="context-option context-option-sub edit-ctx-last-generated-all-container" data-edit-index="${msgIndex}">
+                        <input type="checkbox" class="edit-ctx-last-generated-all" data-edit-index="${msgIndex}" ${options.includeLastGeneratedAllVersions ? 'checked' : ''}>
+                        <span>Include ALL versions of last generated</span>
+                        <span class="image-count edit-count-last-generated-all" data-edit-index="${msgIndex}">0</span>
+                    </label>
+
+                    <label class="context-option">
+                        <input type="checkbox" class="edit-ctx-prev-generated" data-edit-index="${msgIndex}" ${options.includePreviousGenerated ? 'checked' : ''}>
+                        <span>Include previously generated images</span>
+                        <span class="image-count edit-count-prev-generated" data-edit-index="${msgIndex}">0</span>
+                    </label>
+
+                    <label class="context-option context-option-sub edit-ctx-prev-generated-all-container" data-edit-index="${msgIndex}">
+                        <input type="checkbox" class="edit-ctx-prev-generated-all" data-edit-index="${msgIndex}" ${options.includePreviousGeneratedAllVersions ? 'checked' : ''}>
+                        <span>Include ALL versions of previous generated</span>
+                        <span class="image-count edit-count-prev-generated-all" data-edit-index="${msgIndex}">0</span>
+                    </label>
+
+                    <label class="context-option">
+                        <input type="checkbox" class="edit-ctx-first-user-images" data-edit-index="${msgIndex}" ${options.includeFirstUserImages ? 'checked' : ''}>
+                        <span>Include images from first user prompt</span>
+                        <span class="image-count edit-count-first-user" data-edit-index="${msgIndex}">0</span>
+                    </label>
+
+                    <label class="context-option">
+                        <input type="checkbox" class="edit-ctx-all-user-images" data-edit-index="${msgIndex}" ${options.includeAllUserImages ? 'checked' : ''}>
+                        <span>Include images from all previous user prompts</span>
+                        <span class="image-count edit-count-all-user" data-edit-index="${msgIndex}">0</span>
+                    </label>
+                </div>
+            </div>`;
     }
 
     renderMessage(msg, index) {
@@ -297,9 +404,11 @@ class GeminiChat {
         if (msg.isEditing) {
             contentHtml = `
                 <textarea class="edit-textarea" data-index="${index}">${this.escapeHtml(msg.prompt)}</textarea>
+                ${this.renderImageContextOptionsForEdit(msg, index)}
                 <div class="edit-actions">
                     <button class="edit-save-btn" data-index="${index}">Save & Regenerate</button>
                     <button class="edit-cancel-btn" data-index="${index}">Cancel</button>
+                    <div class="edit-note">Note: This will delete all following messages and regenerate</div>
                 </div>`;
         } else if (isUser) {
             contentHtml = `<div class="message-content">${this.escapeHtml(msg.prompt)}</div>`;
@@ -720,11 +829,15 @@ class GeminiChat {
             // Build the full conversation context for the API
             const conversationContext = this.buildConversationContext(assistantMsgIndex - 1);
 
+            // Use current header settings for model and num_images (allows changing settings for regeneration)
+            const currentModel = this.elements.modelSelect.value;
+            const currentNumImages = parseInt(this.elements.numImages.value);
+
             // Prepare form data
             const formData = new FormData();
             formData.append('prompt', conversationContext.prompt);
-            formData.append('model', userMessage.model);
-            formData.append('num_images', userMessage.numImages);
+            formData.append('model', currentModel);
+            formData.append('num_images', currentNumImages);
 
             // Add images - separate server paths, base64, and external URLs
             const externalUrls = [];
@@ -771,6 +884,7 @@ class GeminiChat {
             // Process and save generated images to server
             const generatedImages = [];
             const versionIndex = assistantMessage.generations.length;
+            const cacheBuster = Date.now(); // Add cache-busting timestamp
 
             // Handle different API response formats
             const apiImages = data.images || (data.data && data.data.map(d => d.url || d.b64_json)) || [];
@@ -789,7 +903,7 @@ class GeminiChat {
                         versionIndex,
                         i
                     );
-                    generatedImages.push(serverUrl);
+                    generatedImages.push(`${serverUrl}?t=${cacheBuster}`);
                 } else if (image.startsWith('http')) {
                     // Download URL and save to server
                     const serverUrl = await this.storageService.saveGeneratedImage(
@@ -800,7 +914,7 @@ class GeminiChat {
                         versionIndex,
                         i
                     );
-                    generatedImages.push(serverUrl);
+                    generatedImages.push(`${serverUrl}?t=${cacheBuster}`);
                 } else {
                     generatedImages.push(image);
                 }
@@ -821,27 +935,37 @@ class GeminiChat {
         }
     }
 
-    // Build conversation context - all previous prompts + current generation as image
-    buildConversationContext(upToUserMsgIndex) {
+    // Build conversation context - all previous prompts + images based on options
+    buildConversationContext(upToUserMsgIndex, imageContextOptions) {
         const chat = this.chats[this.currentChatId];
         const prompts = [];
-        let lastGeneratedImages = [];
+        const allImages = [];
+
+        // Get target user message
+        const targetUserMsg = chat.messages[upToUserMsgIndex];
+
+        // Use saved options from target message if not provided
+        if (!imageContextOptions) {
+            imageContextOptions = targetUserMsg.imageContextOptions || {
+                includeLastGenerated: true,
+                includeLastGeneratedAllVersions: false,
+                includePreviousGenerated: false,
+                includePreviousGeneratedAllVersions: false,
+                includeFirstUserImages: false,
+                includeAllUserImages: false
+            };
+        }
+
+        // ALWAYS include target user message's input images
+        allImages.push(...(targetUserMsg.inputImages || []));
 
         // Collect all user prompts up to and including the target
         for (let i = 0; i <= upToUserMsgIndex; i++) {
             const msg = chat.messages[i];
             if (msg.role === 'user') {
                 prompts.push(msg.prompt);
-            } else if (msg.role === 'assistant' && !msg.error) {
-                // Get the currently displayed version's images
-                const generations = msg.generations || [{ images: msg.images }];
-                const currentVersion = msg.currentVersion !== undefined ? msg.currentVersion : 0;
-                lastGeneratedImages = generations[currentVersion]?.images || msg.images || [];
             }
         }
-
-        // The target user message
-        const targetUserMsg = chat.messages[upToUserMsgIndex];
 
         // Combine prompts with clear delineation
         let combinedPrompt;
@@ -851,13 +975,74 @@ class GeminiChat {
             combinedPrompt = prompts[0];
         }
 
-        // Combine images: user's input images + last generated images
-        const allImages = [...(targetUserMsg.inputImages || [])];
+        // Find last assistant message index
+        let lastAssistantIndex = -1;
+        for (let i = upToUserMsgIndex - 1; i >= 0; i--) {
+            if (chat.messages[i].role === 'assistant' && !chat.messages[i].error) {
+                lastAssistantIndex = i;
+                break;
+            }
+        }
 
-        // Add last generated images if this is a continuation
-        if (upToUserMsgIndex > 0 && lastGeneratedImages.length > 0) {
-            // Include the currently shown generation
-            allImages.push(...lastGeneratedImages);
+        // Process image context options
+
+        // 1. Include last generated images
+        if (imageContextOptions.includeLastGenerated && lastAssistantIndex >= 0) {
+            const lastMsg = chat.messages[lastAssistantIndex];
+            const generations = lastMsg.generations || [{ images: lastMsg.images }];
+
+            if (imageContextOptions.includeLastGeneratedAllVersions) {
+                // All versions of last generated
+                generations.forEach(gen => {
+                    allImages.push(...(gen.images || []));
+                });
+            } else {
+                // Current version only
+                const currentVersion = lastMsg.currentVersion !== undefined ? lastMsg.currentVersion : 0;
+                allImages.push(...(generations[currentVersion]?.images || []));
+            }
+        }
+
+        // 2. Include previous generated images (before last)
+        if (imageContextOptions.includePreviousGenerated) {
+            for (let i = 0; i < upToUserMsgIndex; i++) {
+                const msg = chat.messages[i];
+                if (msg.role === 'assistant' && !msg.error && i !== lastAssistantIndex) {
+                    const generations = msg.generations || [{ images: msg.images }];
+
+                    if (imageContextOptions.includePreviousGeneratedAllVersions) {
+                        // All versions
+                        generations.forEach(gen => {
+                            allImages.push(...(gen.images || []));
+                        });
+                    } else {
+                        // Current version only
+                        const currentVersion = msg.currentVersion !== undefined ? msg.currentVersion : 0;
+                        allImages.push(...(generations[currentVersion]?.images || []));
+                    }
+                }
+            }
+        }
+
+        // 3. Include first user message images
+        if (imageContextOptions.includeFirstUserImages) {
+            for (let i = 0; i < upToUserMsgIndex; i++) {
+                const msg = chat.messages[i];
+                if (msg.role === 'user') {
+                    allImages.push(...(msg.inputImages || []));
+                    break; // Only first user message
+                }
+            }
+        }
+
+        // 4. Include all previous user message images
+        if (imageContextOptions.includeAllUserImages) {
+            for (let i = 0; i < upToUserMsgIndex; i++) {
+                const msg = chat.messages[i];
+                if (msg.role === 'user') {
+                    allImages.push(...(msg.inputImages || []));
+                }
+            }
         }
 
         return {
@@ -877,6 +1062,30 @@ class GeminiChat {
             textarea.focus();
             textarea.setSelectionRange(textarea.value.length, textarea.value.length);
         }
+
+        // Set up dropdown toggle for edit context section
+        const contextToggle = this.elements.messagesContainer.querySelector(`.edit-context-toggle[data-edit-index="${index}"]`);
+        const contextPanel = this.elements.messagesContainer.querySelector(`.context-options-panel[data-edit-index="${index}"]`);
+        const dropdownArrow = contextToggle?.querySelector('.dropdown-arrow');
+
+        if (contextToggle && contextPanel) {
+            contextToggle.addEventListener('click', () => {
+                const isOpen = contextPanel.style.display !== 'none';
+                contextPanel.style.display = isOpen ? 'none' : 'block';
+                if (dropdownArrow) {
+                    dropdownArrow.classList.toggle('open', !isOpen);
+                }
+            });
+        }
+
+        // Calculate and update image counts for edit mode
+        this.updateEditImageContextCounts(index);
+
+        // Add event listeners to checkboxes to recalculate counts
+        const checkboxes = this.elements.messagesContainer.querySelectorAll(`.edit-context-section[data-edit-index="${index}"] input[type="checkbox"]`);
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => this.updateEditImageContextCounts(index));
+        });
     }
 
     cancelEdit(index) {
@@ -892,15 +1101,29 @@ class GeminiChat {
 
         if (!newPrompt) return;
 
+        // Validate image count
+        const totalImageCount = this.updateEditImageContextCounts(index);
+        if (totalImageCount > 14) {
+            this.showNotification('Too many images selected. Maximum is 14 images.', 'error');
+            return;
+        }
+
+        // Get image context options from edit mode
+        const imageContextOptions = this.getEditImageContextOptions(index);
+
         // Update the message
         chat.messages[index].prompt = newPrompt;
+        chat.messages[index].imageContextOptions = imageContextOptions;
         chat.messages[index].isEditing = false;
 
-        // Remove all messages after this one (the response)
+        // Remove all messages after this one (the response) - this clears old generations
         chat.messages = chat.messages.slice(0, index + 1);
-        this.saveChats();
 
-        // Regenerate
+        // Save and render immediately to close edit mode and clear old generations
+        await this.saveChats();
+        this.renderMessages();
+
+        // Regenerate with new prompt
         await this.generateResponseForUserMessage(index);
     }
 
@@ -1066,6 +1289,7 @@ class GeminiChat {
                     const base64 = e.target.result;
                     this.uploadedFilesData.push(base64);
                     this.displayImagePreview(base64, this.uploadedFilesData.length - 1);
+                    this.updateImageContextCounts(); // Update counts when image added
                 };
                 reader.readAsDataURL(file);
             }
@@ -1098,6 +1322,7 @@ class GeminiChat {
         this.uploadedFilesData.forEach((base64, i) => {
             this.displayImagePreview(base64, i);
         });
+        this.updateImageContextCounts(); // Update counts when image removed
     }
 
     addImageUrl() {
@@ -1106,6 +1331,7 @@ class GeminiChat {
             this.imageUrls.push(url);
             this.displayUrlItem(url);
             this.elements.imageUrlInput.value = '';
+            this.updateImageContextCounts(); // Update counts when URL added
         }
     }
 
@@ -1120,6 +1346,7 @@ class GeminiChat {
         urlItem.querySelector('button').addEventListener('click', () => {
             this.imageUrls = this.imageUrls.filter(u => u !== url);
             urlItem.remove();
+            this.updateImageContextCounts(); // Update counts when URL removed
         });
 
         this.elements.urlList.appendChild(urlItem);
@@ -1132,6 +1359,13 @@ class GeminiChat {
             return;
         }
 
+        // Validate image count
+        const totalImageCount = this.updateImageContextCounts();
+        if (totalImageCount > 14) {
+            this.showNotification('Too many images selected. Maximum is 14 images.', 'error');
+            return;
+        }
+
         // Show loading state
         this.elements.sendBtn.disabled = true;
         this.elements.sendBtn.textContent = 'Uploading images...';
@@ -1140,9 +1374,13 @@ class GeminiChat {
             const model = this.elements.modelSelect.value;
             const numImages = parseInt(this.elements.numImages.value);
 
+            // Get image context options
+            const imageContextOptions = this.getImageContextOptions();
+
             // Upload base64 images to server first
             const inputImages = [];
             const messageIndex = this.chats[this.currentChatId].messages.length;
+            const cacheBuster = Date.now(); // Add cache-busting timestamp
 
             // Process uploaded files (base64)
             for (let i = 0; i < this.uploadedFilesData.length; i++) {
@@ -1160,7 +1398,7 @@ class GeminiChat {
                     messageIndex,
                     i
                 );
-                inputImages.push(serverUrl);
+                inputImages.push(`${serverUrl}?t=${cacheBuster}`);
             }
 
             // Add external URLs as-is
@@ -1173,6 +1411,7 @@ class GeminiChat {
                 model: model,
                 numImages: numImages,
                 inputImages: inputImages,
+                imageContextOptions: imageContextOptions,
                 timestamp: new Date().toISOString()
             };
 
@@ -1236,11 +1475,15 @@ class GeminiChat {
         this.elements.sendBtn.disabled = true;
 
         try {
+            // Use current header settings for model and num_images (allows changing settings for regeneration)
+            const currentModel = this.elements.modelSelect.value;
+            const currentNumImages = parseInt(this.elements.numImages.value);
+
             // Prepare form data
             const formData = new FormData();
             formData.append('prompt', context.prompt);
-            formData.append('model', userMessage.model);
-            formData.append('num_images', userMessage.numImages);
+            formData.append('model', currentModel);
+            formData.append('num_images', currentNumImages);
 
             // Add images - separate server paths, base64, and external URLs
             const externalUrls = [];
@@ -1291,6 +1534,7 @@ class GeminiChat {
             const generatedImages = [];
             const messageIndex = chat.messages.length;
             const versionIndex = 0;
+            const cacheBuster = Date.now(); // Add cache-busting timestamp
 
             // Handle different API response formats
             const apiImages = data.images || (data.data && data.data.map(d => d.url || d.b64_json)) || [];
@@ -1309,7 +1553,7 @@ class GeminiChat {
                         versionIndex,
                         i
                     );
-                    generatedImages.push(serverUrl);
+                    generatedImages.push(`${serverUrl}?t=${cacheBuster}`);
                 } else if (image.startsWith('http')) {
                     // Download URL and save to server
                     const serverUrl = await this.storageService.saveGeneratedImage(
@@ -1320,7 +1564,7 @@ class GeminiChat {
                         versionIndex,
                         i
                     );
-                    generatedImages.push(serverUrl);
+                    generatedImages.push(`${serverUrl}?t=${cacheBuster}`);
                 } else {
                     // Keep as-is if it doesn't match expected formats
                     generatedImages.push(image);
@@ -1374,6 +1618,347 @@ class GeminiChat {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // Image Context Methods
+
+    updateImageContextCounts() {
+        const chat = this.chats[this.currentChatId];
+        if (!chat) return 0;
+
+        const messages = chat.messages;
+
+        // Current message images (always included)
+        const currentImageCount = this.uploadedFilesData.length + this.imageUrls.length;
+
+        // Find last assistant message
+        let lastAssistantIndex = -1;
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === 'assistant' && !messages[i].error) {
+                lastAssistantIndex = i;
+                break;
+            }
+        }
+
+        // Count last generated images (current version)
+        let lastGeneratedCount = 0;
+        let lastGeneratedAllCount = 0;
+        if (lastAssistantIndex >= 0) {
+            const lastMsg = messages[lastAssistantIndex];
+            const generations = lastMsg.generations || [{ images: lastMsg.images }];
+            const currentVersion = lastMsg.currentVersion !== undefined ? lastMsg.currentVersion : 0;
+            lastGeneratedCount = generations[currentVersion]?.images?.length || 0;
+
+            // All versions
+            lastGeneratedAllCount = generations.reduce((sum, gen) => sum + (gen.images?.length || 0), 0);
+        }
+
+        // Count previous generated images (before last)
+        let prevGeneratedCount = 0;
+        let prevGeneratedAllCount = 0;
+        for (let i = 0; i < messages.length; i++) {
+            if (messages[i].role === 'assistant' && !messages[i].error && i !== lastAssistantIndex) {
+                const msg = messages[i];
+                const generations = msg.generations || [{ images: msg.images }];
+                const currentVersion = msg.currentVersion !== undefined ? msg.currentVersion : 0;
+                prevGeneratedCount += generations[currentVersion]?.images?.length || 0;
+
+                // All versions
+                prevGeneratedAllCount += generations.reduce((sum, gen) => sum + (gen.images?.length || 0), 0);
+            }
+        }
+
+        // Count first user message images
+        let firstUserCount = 0;
+        for (let i = 0; i < messages.length; i++) {
+            if (messages[i].role === 'user') {
+                firstUserCount = messages[i].inputImages?.length || 0;
+                break;
+            }
+        }
+
+        // Count all previous user message images (excluding current)
+        let allUserCount = 0;
+        for (let i = 0; i < messages.length; i++) {
+            if (messages[i].role === 'user') {
+                allUserCount += messages[i].inputImages?.length || 0;
+            }
+        }
+
+        // Update UI counts
+        this.elements.countLastGenerated.textContent = lastGeneratedCount;
+        this.elements.countLastGeneratedAll.textContent = lastGeneratedAllCount;
+        this.elements.countPrevGenerated.textContent = prevGeneratedCount;
+        this.elements.countPrevGeneratedAll.textContent = prevGeneratedAllCount;
+        this.elements.countFirstUser.textContent = firstUserCount;
+        this.elements.countAllUser.textContent = allUserCount;
+
+        // Handle checkbox dependencies
+        const lastGenChecked = this.elements.ctxLastGenerated.checked;
+        const prevGenChecked = this.elements.ctxPrevGenerated.checked;
+
+        this.elements.ctxLastGeneratedAll.disabled = !lastGenChecked;
+        this.elements.ctxLastGeneratedAllContainer.style.opacity = lastGenChecked ? '1' : '0.5';
+
+        this.elements.ctxPrevGeneratedAll.disabled = !prevGenChecked;
+        this.elements.ctxPrevGeneratedAllContainer.style.opacity = prevGenChecked ? '1' : '0.5';
+
+        // Calculate total based on selected options
+        let total = currentImageCount;
+
+        if (this.elements.ctxLastGenerated.checked) {
+            if (this.elements.ctxLastGeneratedAll.checked) {
+                total += lastGeneratedAllCount;
+            } else {
+                total += lastGeneratedCount;
+            }
+        }
+
+        if (this.elements.ctxPrevGenerated.checked) {
+            if (this.elements.ctxPrevGeneratedAll.checked) {
+                total += prevGeneratedAllCount;
+            } else {
+                total += prevGeneratedCount;
+            }
+        }
+
+        if (this.elements.ctxFirstUserImages.checked) {
+            total += firstUserCount;
+        }
+
+        if (this.elements.ctxAllUserImages.checked) {
+            total += allUserCount;
+        }
+
+        // Update total display
+        this.elements.totalImageCount.textContent = total;
+
+        // Apply over-limit styling
+        if (total > 14) {
+            this.elements.totalImageCountContainer.classList.add('over-limit');
+        } else {
+            this.elements.totalImageCountContainer.classList.remove('over-limit');
+        }
+
+        return total;
+    }
+
+    updateEditImageContextCounts(editIndex) {
+        const chat = this.chats[this.currentChatId];
+        if (!chat) return 0;
+
+        const messages = chat.messages;
+        const editMsg = messages[editIndex];
+
+        // Current message images (the message being edited - always included)
+        const currentImageCount = editMsg.inputImages?.length || 0;
+
+        // Find last assistant message BEFORE the edit index
+        let lastAssistantIndex = -1;
+        for (let i = editIndex - 1; i >= 0; i--) {
+            if (messages[i].role === 'assistant' && !messages[i].error) {
+                lastAssistantIndex = i;
+                break;
+            }
+        }
+
+        // Count last generated images (current version)
+        let lastGeneratedCount = 0;
+        let lastGeneratedAllCount = 0;
+        if (lastAssistantIndex >= 0) {
+            const lastMsg = messages[lastAssistantIndex];
+            const generations = lastMsg.generations || [{ images: lastMsg.images }];
+            const currentVersion = lastMsg.currentVersion !== undefined ? lastMsg.currentVersion : 0;
+            lastGeneratedCount = generations[currentVersion]?.images?.length || 0;
+
+            // All versions
+            lastGeneratedAllCount = generations.reduce((sum, gen) => sum + (gen.images?.length || 0), 0);
+        }
+
+        // Count previous generated images (before last, up to editIndex)
+        let prevGeneratedCount = 0;
+        let prevGeneratedAllCount = 0;
+        for (let i = 0; i < editIndex; i++) {
+            if (messages[i].role === 'assistant' && !messages[i].error && i !== lastAssistantIndex) {
+                const msg = messages[i];
+                const generations = msg.generations || [{ images: msg.images }];
+                const currentVersion = msg.currentVersion !== undefined ? msg.currentVersion : 0;
+                prevGeneratedCount += generations[currentVersion]?.images?.length || 0;
+
+                // All versions
+                prevGeneratedAllCount += generations.reduce((sum, gen) => sum + (gen.images?.length || 0), 0);
+            }
+        }
+
+        // Count first user message images
+        let firstUserCount = 0;
+        for (let i = 0; i < editIndex; i++) {
+            if (messages[i].role === 'user') {
+                firstUserCount = messages[i].inputImages?.length || 0;
+                break;
+            }
+        }
+
+        // Count all previous user message images (excluding current being edited)
+        let allUserCount = 0;
+        for (let i = 0; i < editIndex; i++) {
+            if (messages[i].role === 'user') {
+                allUserCount += messages[i].inputImages?.length || 0;
+            }
+        }
+
+        // Get edit mode UI elements
+        const countLastGenerated = this.elements.messagesContainer.querySelector(`.edit-count-last-generated[data-edit-index="${editIndex}"]`);
+        const countLastGeneratedAll = this.elements.messagesContainer.querySelector(`.edit-count-last-generated-all[data-edit-index="${editIndex}"]`);
+        const countPrevGenerated = this.elements.messagesContainer.querySelector(`.edit-count-prev-generated[data-edit-index="${editIndex}"]`);
+        const countPrevGeneratedAll = this.elements.messagesContainer.querySelector(`.edit-count-prev-generated-all[data-edit-index="${editIndex}"]`);
+        const countFirstUser = this.elements.messagesContainer.querySelector(`.edit-count-first-user[data-edit-index="${editIndex}"]`);
+        const countAllUser = this.elements.messagesContainer.querySelector(`.edit-count-all-user[data-edit-index="${editIndex}"]`);
+        const totalCount = this.elements.messagesContainer.querySelector(`.edit-total-count[data-edit-index="${editIndex}"]`);
+        const totalContainer = this.elements.messagesContainer.querySelector(`.edit-context-toggle[data-edit-index="${editIndex}"]`);
+
+        const ctxLastGenerated = this.elements.messagesContainer.querySelector(`.edit-ctx-last-generated[data-edit-index="${editIndex}"]`);
+        const ctxLastGeneratedAll = this.elements.messagesContainer.querySelector(`.edit-ctx-last-generated-all[data-edit-index="${editIndex}"]`);
+        const ctxLastGeneratedAllContainer = this.elements.messagesContainer.querySelector(`.edit-ctx-last-generated-all-container[data-edit-index="${editIndex}"]`);
+        const ctxPrevGenerated = this.elements.messagesContainer.querySelector(`.edit-ctx-prev-generated[data-edit-index="${editIndex}"]`);
+        const ctxPrevGeneratedAll = this.elements.messagesContainer.querySelector(`.edit-ctx-prev-generated-all[data-edit-index="${editIndex}"]`);
+        const ctxPrevGeneratedAllContainer = this.elements.messagesContainer.querySelector(`.edit-ctx-prev-generated-all-container[data-edit-index="${editIndex}"]`);
+        const ctxFirstUserImages = this.elements.messagesContainer.querySelector(`.edit-ctx-first-user-images[data-edit-index="${editIndex}"]`);
+        const ctxAllUserImages = this.elements.messagesContainer.querySelector(`.edit-ctx-all-user-images[data-edit-index="${editIndex}"]`);
+
+        // Update UI counts
+        if (countLastGenerated) countLastGenerated.textContent = lastGeneratedCount;
+        if (countLastGeneratedAll) countLastGeneratedAll.textContent = lastGeneratedAllCount;
+        if (countPrevGenerated) countPrevGenerated.textContent = prevGeneratedCount;
+        if (countPrevGeneratedAll) countPrevGeneratedAll.textContent = prevGeneratedAllCount;
+        if (countFirstUser) countFirstUser.textContent = firstUserCount;
+        if (countAllUser) countAllUser.textContent = allUserCount;
+
+        // Handle checkbox dependencies
+        if (ctxLastGenerated && ctxLastGeneratedAll && ctxLastGeneratedAllContainer) {
+            const lastGenChecked = ctxLastGenerated.checked;
+            ctxLastGeneratedAll.disabled = !lastGenChecked;
+            ctxLastGeneratedAllContainer.style.opacity = lastGenChecked ? '1' : '0.5';
+        }
+
+        if (ctxPrevGenerated && ctxPrevGeneratedAll && ctxPrevGeneratedAllContainer) {
+            const prevGenChecked = ctxPrevGenerated.checked;
+            ctxPrevGeneratedAll.disabled = !prevGenChecked;
+            ctxPrevGeneratedAllContainer.style.opacity = prevGenChecked ? '1' : '0.5';
+        }
+
+        // Calculate total based on selected options
+        let total = currentImageCount;
+
+        if (ctxLastGenerated?.checked) {
+            if (ctxLastGeneratedAll?.checked) {
+                total += lastGeneratedAllCount;
+            } else {
+                total += lastGeneratedCount;
+            }
+        }
+
+        if (ctxPrevGenerated?.checked) {
+            if (ctxPrevGeneratedAll?.checked) {
+                total += prevGeneratedAllCount;
+            } else {
+                total += prevGeneratedCount;
+            }
+        }
+
+        if (ctxFirstUserImages?.checked) {
+            total += firstUserCount;
+        }
+
+        if (ctxAllUserImages?.checked) {
+            total += allUserCount;
+        }
+
+        // Update total display
+        if (totalCount) totalCount.textContent = total;
+
+        // Apply over-limit styling
+        if (totalContainer) {
+            if (total > 14) {
+                totalContainer.classList.add('over-limit');
+            } else {
+                totalContainer.classList.remove('over-limit');
+            }
+        }
+
+        return total;
+    }
+
+    getImageContextOptions() {
+        // Handle dependencies - uncheck child if parent is unchecked
+        const includeLastGenerated = this.elements.ctxLastGenerated.checked;
+        const includePrevGenerated = this.elements.ctxPrevGenerated.checked;
+
+        return {
+            includeLastGenerated: includeLastGenerated,
+            includeLastGeneratedAllVersions: includeLastGenerated && this.elements.ctxLastGeneratedAll.checked,
+            includePreviousGenerated: includePrevGenerated,
+            includePreviousGeneratedAllVersions: includePrevGenerated && this.elements.ctxPrevGeneratedAll.checked,
+            includeFirstUserImages: this.elements.ctxFirstUserImages.checked,
+            includeAllUserImages: this.elements.ctxAllUserImages.checked
+        };
+    }
+
+    setImageContextOptions(options) {
+        if (!options) {
+            // Default options (backward compatibility)
+            options = {
+                includeLastGenerated: true,
+                includeLastGeneratedAllVersions: false,
+                includePreviousGenerated: false,
+                includePreviousGeneratedAllVersions: false,
+                includeFirstUserImages: false,
+                includeAllUserImages: false
+            };
+        }
+
+        this.elements.ctxLastGenerated.checked = options.includeLastGenerated;
+        this.elements.ctxLastGeneratedAll.checked = options.includeLastGeneratedAllVersions;
+        this.elements.ctxPrevGenerated.checked = options.includePreviousGenerated;
+        this.elements.ctxPrevGeneratedAll.checked = options.includePreviousGeneratedAllVersions;
+        this.elements.ctxFirstUserImages.checked = options.includeFirstUserImages;
+        this.elements.ctxAllUserImages.checked = options.includeAllUserImages;
+
+        // Update counts after setting options
+        this.updateImageContextCounts();
+    }
+
+    getEditImageContextOptions(editIndex) {
+        // Get checkboxes from edit mode UI
+        const ctxLastGenerated = this.elements.messagesContainer.querySelector(`.edit-ctx-last-generated[data-edit-index="${editIndex}"]`);
+        const ctxLastGeneratedAll = this.elements.messagesContainer.querySelector(`.edit-ctx-last-generated-all[data-edit-index="${editIndex}"]`);
+        const ctxPrevGenerated = this.elements.messagesContainer.querySelector(`.edit-ctx-prev-generated[data-edit-index="${editIndex}"]`);
+        const ctxPrevGeneratedAll = this.elements.messagesContainer.querySelector(`.edit-ctx-prev-generated-all[data-edit-index="${editIndex}"]`);
+        const ctxFirstUserImages = this.elements.messagesContainer.querySelector(`.edit-ctx-first-user-images[data-edit-index="${editIndex}"]`);
+        const ctxAllUserImages = this.elements.messagesContainer.querySelector(`.edit-ctx-all-user-images[data-edit-index="${editIndex}"]`);
+
+        // Handle dependencies - uncheck child if parent is unchecked
+        const includeLastGenerated = ctxLastGenerated?.checked || false;
+        const includePrevGenerated = ctxPrevGenerated?.checked || false;
+
+        return {
+            includeLastGenerated: includeLastGenerated,
+            includeLastGeneratedAllVersions: includeLastGenerated && (ctxLastGeneratedAll?.checked || false),
+            includePreviousGenerated: includePrevGenerated,
+            includePreviousGeneratedAllVersions: includePrevGenerated && (ctxPrevGeneratedAll?.checked || false),
+            includeFirstUserImages: ctxFirstUserImages?.checked || false,
+            includeAllUserImages: ctxAllUserImages?.checked || false
+        };
+    }
+
+    showImageContextSection() {
+        const chat = this.chats[this.currentChatId];
+        if (!chat || chat.messages.length === 0) {
+            this.elements.imageContextSection.style.display = 'none';
+        } else {
+            this.elements.imageContextSection.style.display = 'block';
+            this.updateImageContextCounts();
+        }
     }
 
     scrollToBottom() {

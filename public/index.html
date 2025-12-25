@@ -25,8 +25,25 @@
         <!-- Main Content -->
         <main class="main-container">
             <header>
-                <h1>Gemini 3 Image Pro</h1>
-                <p class="subtitle">Powered by AI/ML API - Nano Banana Pro</p>
+                <div class="header-content">
+                    <div class="header-title">
+                        <h1>Gemini 3 Image Pro</h1>
+                        <p class="subtitle">Powered by AI/ML API - Nano Banana Pro</p>
+                    </div>
+                    <div class="header-settings">
+                        <div class="setting-group">
+                            <label for="model-select">Model:</label>
+                            <select id="model-select">
+                                <option value="google/nano-banana-pro-edit">Nano Banana Pro Edit</option>
+                                <option value="google/gemini-3-pro-image-preview-edit">Gemini 3 Pro Image Preview Edit</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label for="num-images">Images:</label>
+                            <input type="number" id="num-images" min="1" max="4" value="1">
+                        </div>
+                    </div>
+                </div>
             </header>
 
             <div class="chat-container">
@@ -40,37 +57,63 @@
 
                 <div class="input-area">
                     <div class="input-inner">
-                        <div class="settings-bar">
-                            <div class="setting-group">
-                                <label for="model-select">Model:</label>
-                                <select id="model-select">
-                                    <option value="google/nano-banana-pro-edit">Nano Banana Pro Edit</option>
-                                    <option value="google/gemini-3-pro-image-preview-edit">Gemini 3 Pro Image Preview Edit</option>
-                                </select>
-                            </div>
-
-                            <div class="setting-group">
-                                <label for="num-images">Images:</label>
-                                <input type="number" id="num-images" min="1" max="4" value="1">
-                            </div>
-                        </div>
-
                         <div class="image-upload-area">
                             <div class="upload-options">
-                                <div class="upload-section">
-                                    <label class="file-upload-btn">
-                                        <input type="file" id="file-input" multiple accept="image/*">
-                                        Upload Images
-                                    </label>
-                                    <span class="upload-hint">or paste image URLs below</span>
-                                </div>
+                                <label class="file-upload-btn">
+                                    <input type="file" id="file-input" multiple accept="image/*">
+                                    Upload Images
+                                </label>
+                                <span class="upload-hint">or</span>
+                                <input type="text" id="image-url-input" placeholder="Enter image URL and press Enter" class="inline-url-input">
                             </div>
 
                             <div id="image-preview-container" class="image-preview-container"></div>
+                            <div id="url-list" class="url-list"></div>
 
-                            <div class="url-input-section">
-                                <input type="text" id="image-url-input" placeholder="Enter image URL and press Enter (can add multiple)">
-                                <div id="url-list" class="url-list"></div>
+                            <!-- Image Context Options -->
+                            <div class="image-context-section" id="image-context-section" style="display: none;">
+                                <div class="total-image-count" id="context-toggle">
+                                    <span>Total: <span id="total-image-count">0</span> / 14 images</span>
+                                    <span class="dropdown-arrow">▼</span>
+                                </div>
+
+                                <div class="context-options-panel" id="context-options-panel" style="display: none;">
+                                    <label class="context-option">
+                                        <input type="checkbox" id="ctx-last-generated" checked>
+                                        <span>Include last generated image</span>
+                                        <span class="image-count" id="count-last-generated">0</span>
+                                    </label>
+
+                                    <label class="context-option context-option-sub" id="ctx-last-generated-all-container">
+                                        <input type="checkbox" id="ctx-last-generated-all">
+                                        <span>Include ALL versions of last generated</span>
+                                        <span class="image-count" id="count-last-generated-all">0</span>
+                                    </label>
+
+                                    <label class="context-option">
+                                        <input type="checkbox" id="ctx-prev-generated">
+                                        <span>Include previously generated images</span>
+                                        <span class="image-count" id="count-prev-generated">0</span>
+                                    </label>
+
+                                    <label class="context-option context-option-sub" id="ctx-prev-generated-all-container">
+                                        <input type="checkbox" id="ctx-prev-generated-all">
+                                        <span>Include ALL versions of previous generated</span>
+                                        <span class="image-count" id="count-prev-generated-all">0</span>
+                                    </label>
+
+                                    <label class="context-option">
+                                        <input type="checkbox" id="ctx-first-user-images">
+                                        <span>Include images from first user prompt</span>
+                                        <span class="image-count" id="count-first-user">0</span>
+                                    </label>
+
+                                    <label class="context-option">
+                                        <input type="checkbox" id="ctx-all-user-images">
+                                        <span>Include images from all previous user prompts</span>
+                                        <span class="image-count" id="count-all-user">0</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
 
