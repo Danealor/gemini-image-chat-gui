@@ -482,7 +482,7 @@ class GeminiChat {
                         </div>`;
                 }
 
-                const images = currentGen?.images || [];
+                const images = currentVer?.images || [];
                 contentHtml = `<div class="message-content">Generated ${images.length} image(s)</div>`;
 
                 if (images.length > 0) {
