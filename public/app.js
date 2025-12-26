@@ -1231,6 +1231,10 @@ class GeminiChat {
         // Check if there's an assistant response after this message
         const hasAssistantResponse = index + 1 < chat.messages.length && chat.messages[index + 1].role === 'assistant';
 
+        // Save and render immediately to close edit mode
+        await this.saveChats();
+        this.renderMessages();
+
         if (hasAssistantResponse) {
             // Ensure versions structure on assistant message
             const assistantMessage = chat.messages[index + 1];
@@ -1239,14 +1243,13 @@ class GeminiChat {
             // Create a new version for the edited prompt (keep old versions)
             assistantMessage.currentVersion = assistantMessage.versions.length;
             assistantMessage.versions.push({ images: [] });
+
+            // Generate images into this new version of the existing assistant message
+            await this.addToCurrentVersion(chat.messages[index], assistantMessage, index + 1);
+        } else {
+            // No assistant response exists, create a new one
+            await this.generateResponseForUserMessage(index);
         }
-
-        // Save and render immediately to close edit mode
-        await this.saveChats();
-        this.renderMessages();
-
-        // Generate new version with new prompt
-        await this.generateResponseForUserMessage(index);
     }
 
     removeInputImage(msgIndex, imgIndex) {
