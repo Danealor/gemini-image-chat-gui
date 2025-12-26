@@ -808,6 +808,7 @@ class GeminiChat {
                         const versions = msg.versions;
                         const currentVer = versions[newVersion];
                         const images = currentVer?.images || [];
+                        const selectedIndices = currentVer.selectedImageIndices || [];
                         const totalVersions = versions.length;
 
                         let contentHtml = `<div class="message-content">Generated ${images.length} image(s)</div>`;
@@ -815,8 +816,17 @@ class GeminiChat {
                         if (images.length > 0) {
                             contentHtml += '<div class="message-images">';
                             images.forEach((imgUrl, imgIndex) => {
-                                contentHtml += `<img src="${imgUrl}" alt="Generated image" class="message-image clickable-image"
-                                                     data-msg-index="${msgIndex}" data-img-index="${imgIndex}" data-image-type="generated">`;
+                                const isSelected = selectedIndices.includes(imgIndex);
+                                contentHtml += `
+                                    <div class="generated-image-container">
+                                        <img src="${imgUrl}" alt="Generated image" class="message-image clickable-image ${isSelected ? 'selected' : ''}"
+                                             data-msg-index="${msgIndex}" data-img-index="${imgIndex}" data-image-type="generated">
+                                        <button class="image-select-btn ${isSelected ? 'selected' : ''}"
+                                                data-msg-index="${msgIndex}" data-img-index="${imgIndex}"
+                                                title="Click to ${isSelected ? 'deselect' : 'select'} for context">
+                                            ${isSelected ? '✓ Selected' : 'Select'}
+                                        </button>
+                                    </div>`;
                             });
                             contentHtml += '</div>';
                         }
@@ -1262,7 +1272,9 @@ class GeminiChat {
 
         // Toggle selection
         const selectionIndex = currentVersion.selectedImageIndices.indexOf(imgIndex);
-        if (selectionIndex === -1) {
+        const isNowSelected = selectionIndex === -1;
+
+        if (isNowSelected) {
             // Not selected, add it
             currentVersion.selectedImageIndices.push(imgIndex);
         } else {
@@ -1270,8 +1282,33 @@ class GeminiChat {
             currentVersion.selectedImageIndices.splice(selectionIndex, 1);
         }
 
+        // Update UI immediately without full re-render
+        const imageElement = this.elements.messagesContainer.querySelector(
+            `.message-image[data-msg-index="${msgIndex}"][data-img-index="${imgIndex}"]`
+        );
+        const buttonElement = this.elements.messagesContainer.querySelector(
+            `.image-select-btn[data-msg-index="${msgIndex}"][data-img-index="${imgIndex}"]`
+        );
+
+        if (imageElement && buttonElement) {
+            if (isNowSelected) {
+                imageElement.classList.add('selected');
+                buttonElement.classList.add('selected');
+                buttonElement.textContent = '✓ Selected';
+                buttonElement.title = 'Click to deselect for context';
+            } else {
+                imageElement.classList.remove('selected');
+                buttonElement.classList.remove('selected');
+                buttonElement.textContent = 'Select';
+                buttonElement.title = 'Click to select for context';
+            }
+        }
+
+        // Update image counts
+        this.updateImageContextCounts();
+
+        // Save to server
         this.saveChats();
-        this.renderMessages();
     }
 
     showAddImageDialog(msgIndex) {
