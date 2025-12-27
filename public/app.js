@@ -435,7 +435,23 @@ class GeminiChat {
         let contentHtml = '';
         if (msg.isEditing) {
             contentHtml = `
-                <textarea class="edit-textarea" data-index="${index}">${this.escapeHtml(msg.prompt)}</textarea>
+                <textarea class="edit-textarea" data-index="${index}">${this.escapeHtml(msg.prompt)}</textarea>`;
+
+            // Show input images in edit mode
+            if (msg.inputImages && msg.inputImages.length > 0) {
+                contentHtml += `<div class="message-input-images" data-edit-index="${index}">`;
+                msg.inputImages.forEach((img, imgIndex) => {
+                    contentHtml += `
+                        <div class="message-input-image-container">
+                            <img src="${img}" alt="Input image" class="message-input-image clickable-image"
+                                 data-msg-index="${index}" data-img-index="${imgIndex}" data-image-type="input">
+                            <button class="remove-input-image" data-msg-index="${index}" data-img-index="${imgIndex}">&times;</button>
+                        </div>`;
+                });
+                contentHtml += '</div>';
+            }
+
+            contentHtml += `
                 ${this.renderImageContextOptionsForEdit(msg, index)}
                 <div class="edit-actions">
                     <button class="edit-save-btn" data-index="${index}">Save & Regenerate</button>
@@ -1173,6 +1189,38 @@ class GeminiChat {
         if (textarea) {
             textarea.focus();
             textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+            // Add drag & drop support for edit textarea
+            textarea.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                textarea.classList.add('drag-over');
+            });
+
+            textarea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+
+            textarea.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.target === textarea) {
+                    textarea.classList.remove('drag-over');
+                }
+            });
+
+            textarea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                textarea.classList.remove('drag-over');
+                this.handleEditImageDrop(index, e.dataTransfer);
+            });
+
+            // Add paste support for edit textarea
+            textarea.addEventListener('paste', (e) => {
+                this.handleEditImagePaste(index, e);
+            });
         }
 
         // Set up dropdown toggle for edit context section
@@ -1554,6 +1602,135 @@ class GeminiChat {
         if (foundImage) {
             this.showNotification('Added image from paste', 'success');
         }
+    }
+
+    handleEditImageDrop(msgIndex, dataTransfer) {
+        const files = Array.from(dataTransfer.files).filter(f => f.type.startsWith('image/'));
+
+        if (files.length === 0) {
+            // Check if there are URLs being dragged
+            const url = dataTransfer.getData('text/uri-list') || dataTransfer.getData('text/plain');
+            if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                this.addImageToEditMode(msgIndex, url);
+                this.showNotification('Added image URL from drop', 'success');
+            }
+            return;
+        }
+
+        let loadedCount = 0;
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.addImageToEditMode(msgIndex, e.target.result);
+                loadedCount++;
+
+                if (loadedCount === files.length) {
+                    this.showNotification(`Added ${files.length} image${files.length > 1 ? 's' : ''} from drop`, 'success');
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    handleEditImagePaste(msgIndex, event) {
+        const items = event.clipboardData?.items;
+        if (!items) return;
+
+        let foundImage = false;
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+
+            // Handle pasted images
+            if (item.type.startsWith('image/')) {
+                event.preventDefault();
+                foundImage = true;
+
+                const file = item.getAsFile();
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        this.addImageToEditMode(msgIndex, e.target.result);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+            // Handle pasted URLs
+            else if (item.type === 'text/plain' && !foundImage) {
+                item.getAsString((text) => {
+                    // Only treat as image URL if it looks like an image URL
+                    if (text.match(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$/i)) {
+                        event.preventDefault();
+                        this.addImageToEditMode(msgIndex, text);
+                        this.showNotification('Added image URL from paste', 'success');
+                    }
+                });
+            }
+        }
+
+        if (foundImage) {
+            this.showNotification('Added image from paste', 'success');
+        }
+    }
+
+    addImageToEditMode(msgIndex, imageData) {
+        const chat = this.chats[this.currentChatId];
+        const message = chat.messages[msgIndex];
+
+        if (!message.inputImages) {
+            message.inputImages = [];
+        }
+
+        const imgIndex = message.inputImages.length;
+        message.inputImages.push(imageData);
+
+        // Find the message element
+        const messageElement = this.elements.messagesContainer.querySelector(`.message[data-index="${msgIndex}"]`);
+        if (!messageElement) return;
+
+        const messageBody = messageElement.querySelector('.message-body');
+        if (!messageBody) return;
+
+        // Find or create the image container
+        let imageContainer = messageBody.querySelector('.message-input-images');
+        if (!imageContainer) {
+            imageContainer = document.createElement('div');
+            imageContainer.className = 'message-input-images';
+            imageContainer.setAttribute('data-edit-index', msgIndex);
+
+            // Insert after textarea
+            const textarea = messageBody.querySelector('.edit-textarea');
+            if (textarea) {
+                textarea.after(imageContainer);
+            }
+        }
+
+        // Create the image element
+        const imageDiv = document.createElement('div');
+        imageDiv.className = 'message-input-image-container';
+        imageDiv.innerHTML = `
+            <img src="${imageData}" alt="Input image" class="message-input-image clickable-image"
+                 data-msg-index="${msgIndex}" data-img-index="${imgIndex}" data-image-type="input">
+            <button class="remove-input-image" data-msg-index="${msgIndex}" data-img-index="${imgIndex}">&times;</button>
+        `;
+
+        imageContainer.appendChild(imageDiv);
+
+        // Attach event handlers
+        const img = imageDiv.querySelector('.message-input-image');
+        img.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.openLightbox(msgIndex, imgIndex, 'input');
+        });
+
+        const removeBtn = imageDiv.querySelector('.remove-input-image');
+        removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.removeInputImage(msgIndex, imgIndex);
+        });
+
+        // Save to server
+        this.saveChats();
     }
 
     displayImagePreview(base64, index) {
