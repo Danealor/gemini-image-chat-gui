@@ -440,7 +440,7 @@ class GeminiChat {
                 <div class="edit-actions">
                     <button class="edit-save-btn" data-index="${index}">Save & Regenerate</button>
                     <button class="edit-cancel-btn" data-index="${index}">Cancel</button>
-                    <div class="edit-note">Note: This will delete all following messages and regenerate</div>
+                    <div class="edit-note">Note: This will create a new version with the edited prompt</div>
                 </div>`;
         } else if (isUser) {
             contentHtml = `<div class="message-content">${this.escapeHtml(msg.prompt)}</div>`;
