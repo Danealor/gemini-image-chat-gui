@@ -18,6 +18,7 @@ class GeminiChat {
             urlList: document.getElementById('url-list'),
             modelSelect: document.getElementById('model-select'),
             numImages: document.getElementById('num-images'),
+            resolutionSelect: document.getElementById('resolution-select'),
             newChatBtn: document.getElementById('new-chat-btn'),
             historyList: document.getElementById('history-list'),
             sidebar: document.getElementById('sidebar'),
@@ -910,12 +911,14 @@ class GeminiChat {
             // Use current header settings for model and num_images (allows changing settings for regeneration)
             const currentModel = this.elements.modelSelect.value;
             const currentNumImages = parseInt(this.elements.numImages.value);
+            const currentResolution = this.elements.resolutionSelect.value;
 
             // Prepare form data
             const formData = new FormData();
             formData.append('prompt', conversationContext.prompt);
             formData.append('model', currentModel);
             formData.append('num_images', currentNumImages);
+            formData.append('resolution', currentResolution);
 
             // Add images - separate server paths, base64, and external URLs
             const externalUrls = [];
@@ -1913,12 +1916,14 @@ class GeminiChat {
             // Use current header settings for model and num_images (allows changing settings for regeneration)
             const currentModel = this.elements.modelSelect.value;
             const currentNumImages = parseInt(this.elements.numImages.value);
+            const currentResolution = this.elements.resolutionSelect.value;
 
             // Prepare form data
             const formData = new FormData();
             formData.append('prompt', context.prompt);
             formData.append('model', currentModel);
             formData.append('num_images', currentNumImages);
+            formData.append('resolution', currentResolution);
 
             // Add images - separate server paths, base64, and external URLs
             const externalUrls = [];

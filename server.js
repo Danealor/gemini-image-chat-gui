@@ -26,7 +26,7 @@ const upload = multer({
 // API endpoint for image generation
 app.post('/api/generate', upload.array('images', 10), async (req, res) => {
   try {
-    const { prompt, model, num_images } = req.body;
+    const { prompt, model, num_images, resolution } = req.body;
     const apiKey = process.env.AIML_API_KEY;
 
     if (!apiKey) {
@@ -59,10 +59,12 @@ app.post('/api/generate', upload.array('images', 10), async (req, res) => {
       });
     }
 
+    const count = parseInt(num_images) || 1;
+
     const requestBody = {
       model: model || 'google/nano-banana-pro-edit',
       prompt: prompt,
-      num_images: parseInt(num_images) || 1
+      resolution: resolution || '1K',
     };
 
     // Only add image_urls if there are images
@@ -72,10 +74,11 @@ app.post('/api/generate', upload.array('images', 10), async (req, res) => {
 
     console.log('Sending request to AI/ML API:', {
       ...requestBody,
-      image_urls: requestBody.image_urls ? `[${requestBody.image_urls.length} images]` : 'none'
+      image_urls: requestBody.image_urls ? `[${requestBody.image_urls.length} images]` : 'none',
+      count,
     });
 
-    const response = await fetch('https://api.aimlapi.com/v1/images/generations', {
+    const makeRequest = () => fetch('https://api.aimlapi.com/v1/images/generations', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -84,17 +87,25 @@ app.post('/api/generate', upload.array('images', 10), async (req, res) => {
       body: JSON.stringify(requestBody),
     });
 
-    const data = await response.json();
+    const responses = await Promise.all(Array.from({ length: count }, makeRequest));
 
-    if (!response.ok) {
-      console.error('AI/ML API Error:', data);
-      return res.status(response.status).json({
-        error: data.error || 'Failed to generate image',
-        details: data
-      });
+    // Check for any errors
+    for (const response of responses) {
+      if (!response.ok) {
+        const errData = await response.json();
+        console.error('AI/ML API Error:', errData);
+        return res.status(response.status).json({
+          error: errData.error || 'Failed to generate image',
+          details: errData
+        });
+      }
     }
 
-    res.json(data);
+    const results = await Promise.all(responses.map(r => r.json()));
+
+    // Aggregate all data arrays into one response
+    const combined = results.flatMap(r => r.data || []);
+    res.json({ data: combined });
   } catch (error) {
     console.error('Server error:', error);
     res.status(500).json({ error: error.message });
