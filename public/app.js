@@ -1316,6 +1316,28 @@ class GeminiChat {
             assistantMessage.currentVersion = assistantMessage.versions.length;
             assistantMessage.versions.push({ images: [], prompt: newPrompt });
 
+            // Show loading indicator on the assistant message while generating
+            const assistantMsgElement = this.elements.messagesContainer.querySelector(`.message[data-index="${index + 1}"]`);
+            if (assistantMsgElement) {
+                const totalVersions = assistantMessage.versions.length;
+                const newVersionIndex = assistantMessage.currentVersion;
+                const messageBody = assistantMsgElement.querySelector('.message-body');
+                if (messageBody) {
+                    messageBody.innerHTML = `
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <span>Generating image...</span>
+                        </div>
+                        <div class="version-nav">
+                            <button class="version-btn prev-version" data-index="${index + 1}">&#8592;</button>
+                            <span class="version-info">${newVersionIndex + 1} / ${totalVersions}</span>
+                            <button class="version-btn next-version" data-index="${index + 1}" disabled>&#8594;</button>
+                            <button class="action-btn regenerate-btn" data-index="${index + 1}" disabled>Regenerate</button>
+                        </div>`;
+                    this.attachMessageHandlers();
+                }
+            }
+
             // Generate images into this new version of the existing assistant message
             await this.addToCurrentVersion(chat.messages[index], assistantMessage, index + 1);
         } else {
