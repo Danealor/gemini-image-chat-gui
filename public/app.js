@@ -809,6 +809,19 @@ class GeminiChat {
         const newVersion = (msg.currentVersion || 0) + delta;
         if (newVersion >= 0 && newVersion < msg.versions.length) {
             msg.currentVersion = newVersion;
+
+            // Update the preceding user message prompt if the version has one stored
+            const userMsgIndex = msgIndex - 1;
+            const currentVer = msg.versions[newVersion];
+            if (userMsgIndex >= 0 && chat.messages[userMsgIndex]?.role === 'user' && currentVer?.prompt) {
+                chat.messages[userMsgIndex].prompt = currentVer.prompt;
+                const userMsgElement = this.elements.messagesContainer.querySelector(`.message[data-index="${userMsgIndex}"]`);
+                if (userMsgElement) {
+                    const contentDiv = userMsgElement.querySelector('.message-content');
+                    if (contentDiv) contentDiv.textContent = currentVer.prompt;
+                }
+            }
+
             this.saveChats();
 
             // Only update the specific message element instead of re-rendering everything
@@ -1274,6 +1287,9 @@ class GeminiChat {
         // Get image context options from edit mode
         const imageContextOptions = this.getEditImageContextOptions(index);
 
+        // Capture old prompt before overwriting
+        const oldPrompt = chat.messages[index].prompt;
+
         // Update the message
         chat.messages[index].prompt = newPrompt;
         chat.messages[index].imageContextOptions = imageContextOptions;
@@ -1291,9 +1307,14 @@ class GeminiChat {
             const assistantMessage = chat.messages[index + 1];
             this.ensureVersionsStructure(assistantMessage);
 
+            // Store the old prompt in any existing versions that don't have one saved
+            assistantMessage.versions.forEach(ver => {
+                if (!ver.prompt) ver.prompt = oldPrompt;
+            });
+
             // Create a new version for the edited prompt (keep old versions)
             assistantMessage.currentVersion = assistantMessage.versions.length;
-            assistantMessage.versions.push({ images: [] });
+            assistantMessage.versions.push({ images: [], prompt: newPrompt });
 
             // Generate images into this new version of the existing assistant message
             await this.addToCurrentVersion(chat.messages[index], assistantMessage, index + 1);
