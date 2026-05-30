@@ -2,7 +2,8 @@
 const { test, beforeEach } = require('node:test');
 const assert = require('node:assert');
 
-// Require fresh each test so env changes are read live (functions read process.env per call).
+// Module is cached by require(); env changes between tests are still visible because
+// the provider functions read process.env on every call (no caching of key state).
 const providers = require('../../providers');
 
 beforeEach(() => {

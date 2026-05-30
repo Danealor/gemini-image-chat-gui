@@ -38,3 +38,8 @@ test('parseResponse turns b64_json entries into PNG data URLs', () => {
 test('parseResponse returns empty list when no data', () => {
   assert.deepStrictEqual(parseResponse({}), { images: [] });
 });
+
+test('parseResponse skips entries without b64_json', () => {
+  const res = { data: [{ b64_json: 'QUJD' }, { revised_prompt: 'x' }] };
+  assert.deepStrictEqual(parseResponse(res), { images: ['data:image/png;base64,QUJD'] });
+});

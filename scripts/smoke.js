@@ -10,6 +10,7 @@ async function main() {
   const model = process.argv[2] || 'gemini-3-pro-image';
   const prompt = process.argv[3] || 'a single red apple on a wooden table, studio lighting';
   console.log(`Smoke test: model=${model}`);
+  // Pass both resolution (Gemini) and size (OpenAI); each adapter ignores the one it doesn't use.
   const { images } = await providers.generate(model, { prompt, inputImages: [], options: { resolution: '1K', size: '1024x1024' } });
   console.log(`Returned ${images.length} image(s).`);
   if (images.length === 0) throw new Error('No images returned — check SDK field names / model id.');

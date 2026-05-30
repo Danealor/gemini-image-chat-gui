@@ -7,6 +7,9 @@ const OpenAI = require('openai');
 const { toFile } = require('openai');
 
 let client;
+// Lazily create the SDK client. Invariant: only called after dotenv has loaded the API
+// key at startup, and only via generate() after isProviderConfigured() has passed — so
+// the key is always present here. Cached for the process lifetime.
 function getClient() {
   if (!client) client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   return client;
@@ -27,7 +30,9 @@ function isEdit(inputImages) {
 
 // Normalize an images response into { images: [dataUrl, ...] }.
 function parseResponse(response) {
-  const images = (response?.data || []).map(d => `data:image/png;base64,${d.b64_json}`);
+  const images = (response?.data || [])
+    .filter(d => d.b64_json)
+    .map(d => `data:image/png;base64,${d.b64_json}`);
   return { images };
 }
 

@@ -6,6 +6,9 @@
 const { GoogleGenAI } = require('@google/genai');
 
 let client;
+// Lazily create the SDK client. Invariant: only called after dotenv has loaded the API
+// key at startup, and only via generate() after isProviderConfigured() has passed — so
+// the key is always present here. Cached for the process lifetime.
 function getClient() {
   if (!client) client = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
   return client;

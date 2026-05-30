@@ -26,6 +26,9 @@ function getModels() {
 async function generate(modelId, { prompt, inputImages, options }) {
   const model = getModel(modelId);
   if (!model) throw new Error(`Unknown model: ${modelId}`);
+  if (!(model.provider in PROVIDER_ENV)) {
+    throw new Error(`No env key mapped for provider: ${model.provider}`);
+  }
   if (!isProviderConfigured(model.provider)) {
     throw new Error(`Provider ${model.provider} not configured (set ${PROVIDER_ENV[model.provider]})`);
   }
