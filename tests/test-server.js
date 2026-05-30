@@ -5,7 +5,8 @@
 
 // Set test environment
 process.env.PORT = '3001';
-process.env.AIML_API_KEY = 'test_key_do_not_use_real_tokens';
+process.env.GOOGLE_API_KEY = 'test_google_key';
+process.env.OPENAI_API_KEY = 'test_openai_key';
 
 const express = require('express');
 const multer = require('multer');
@@ -94,15 +95,10 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Model list — returns the same four models as the real registry.
+// Model list — backed by the real registry so the dropdown is populated identically to production.
+const { MODELS, DEFAULT_MODEL } = require('../providers/models');
 app.get('/api/models', (req, res) => {
-    const models = [
-        { id: 'imagen-3.0-generate-002', label: 'Imagen 3', provider: 'google', capabilities: { edit: false, maxOutputs: 4 } },
-        { id: 'gemini-2.0-flash-preview-image-generation', label: 'Gemini 2.0 Flash', provider: 'google', capabilities: { edit: true, maxOutputs: 1 } },
-        { id: 'gpt-image-1', label: 'GPT Image 1', provider: 'openai', capabilities: { edit: true, maxOutputs: 4 } },
-        { id: 'dall-e-3', label: 'DALL-E 3', provider: 'openai', capabilities: { edit: false, maxOutputs: 1 } },
-    ];
-    res.json({ models, default: 'imagen-3.0-generate-002' });
+    res.json({ models: MODELS, default: DEFAULT_MODEL });
 });
 
 // Cleanup endpoint for tests
