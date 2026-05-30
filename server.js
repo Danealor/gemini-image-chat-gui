@@ -32,7 +32,8 @@ async function urlToImage(url) {
   }
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`Failed to fetch input image: ${resp.status}`);
-  const mimeType = resp.headers.get('content-type') || 'image/png';
+  const rawType = resp.headers.get('content-type') || 'image/png';
+  const mimeType = rawType.split(';')[0].trim();
   const arrayBuf = await resp.arrayBuffer();
   return { buffer: Buffer.from(arrayBuf), mimeType };
 }
@@ -75,7 +76,7 @@ app.post('/api/generate', upload.array('images', 14), async (req, res) => {
     };
 
     // Preserve current behavior: fan out one call per requested image.
-    const count = Math.min(parseInt(req.body.num_images) || 1, modelDef.capabilities.maxOutputs);
+    const count = Math.max(1, Math.min(parseInt(req.body.num_images) || 1, modelDef.capabilities.maxOutputs));
     console.log(`Generating ${count} image(s) with ${modelId} (${inputImages.length} input image(s))`);
 
     const results = await Promise.all(
