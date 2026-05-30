@@ -85,13 +85,24 @@ app.post('/api/generate', upload.array('images', 10), async (req, res) => {
     }
 });
 
-// Health check
+// Health check — mirrors the real server's { status, providers } shape.
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
-        hasApiKey: true,
+        providers: { google: true, openai: true },
         testMode: true
     });
+});
+
+// Model list — returns the same four models as the real registry.
+app.get('/api/models', (req, res) => {
+    const models = [
+        { id: 'imagen-3.0-generate-002', label: 'Imagen 3', provider: 'google', capabilities: { edit: false, maxOutputs: 4 } },
+        { id: 'gemini-2.0-flash-preview-image-generation', label: 'Gemini 2.0 Flash', provider: 'google', capabilities: { edit: true, maxOutputs: 1 } },
+        { id: 'gpt-image-1', label: 'GPT Image 1', provider: 'openai', capabilities: { edit: true, maxOutputs: 4 } },
+        { id: 'dall-e-3', label: 'DALL-E 3', provider: 'openai', capabilities: { edit: false, maxOutputs: 1 } },
+    ];
+    res.json({ models, default: 'imagen-3.0-generate-002' });
 });
 
 // Cleanup endpoint for tests

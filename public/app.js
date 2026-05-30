@@ -181,7 +181,12 @@ class GeminiChat {
 
     // Load the model registry and build the model dropdown + initial controls.
     async initModels() {
-        await ModelRegistry.load();
+        try {
+            await ModelRegistry.load();
+        } catch (e) {
+            this.addErrorToCurrentChat('Failed to load model list from server');
+            return;
+        }
         this.elements.modelSelect.innerHTML = '';
         const groups = {};
         for (const m of ModelRegistry.models) {
@@ -1633,9 +1638,9 @@ class GeminiChat {
         try {
             const response = await fetch('/api/health');
             const data = await response.json();
-
-            if (!data.hasApiKey) {
-                this.addErrorToCurrentChat('API key not configured. Please set AIML_API_KEY in .env file');
+            const { google, openai } = data.providers || {};
+            if (!google && !openai) {
+                this.addErrorToCurrentChat('No provider configured. Set GOOGLE_API_KEY or OPENAI_API_KEY in .env');
             }
         } catch (error) {
             this.addErrorToCurrentChat('Failed to connect to server');
@@ -1665,6 +1670,8 @@ class GeminiChat {
     }
 
     handleImageDrop(dataTransfer) {
+        const caps = ModelRegistry.capabilities(this.elements.modelSelect.value);
+        if (caps && caps.edit === false) return;
         const files = Array.from(dataTransfer.files).filter(f => f.type.startsWith('image/'));
 
         if (files.length === 0) {
@@ -1696,6 +1703,8 @@ class GeminiChat {
     }
 
     handleImagePaste(event) {
+        const caps = ModelRegistry.capabilities(this.elements.modelSelect.value);
+        if (caps && caps.edit === false) return;
         const items = event.clipboardData?.items;
         if (!items) return;
 
