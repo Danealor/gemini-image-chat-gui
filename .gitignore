@@ -12,6 +12,9 @@ tests/test-data/
 test-results/
 playwright-report/
 
+# Smoke test output
+smoke-output.png
+
 # Logs
 logs
 *.log
