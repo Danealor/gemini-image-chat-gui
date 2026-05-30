@@ -1,6 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const fetch = require('node-fetch');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -23,101 +22,76 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
-// API endpoint for image generation
-app.post('/api/generate', upload.array('images', 10), async (req, res) => {
+const providers = require('./providers');
+
+// Normalize one input image source into { buffer, mimeType }.
+async function urlToImage(url) {
+  const dataMatch = url.match(/^data:(image\/\w+);base64,(.+)$/);
+  if (dataMatch) {
+    return { buffer: Buffer.from(dataMatch[2], 'base64'), mimeType: dataMatch[1] };
+  }
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Failed to fetch input image: ${resp.status}`);
+  const mimeType = resp.headers.get('content-type') || 'image/png';
+  const arrayBuf = await resp.arrayBuffer();
+  return { buffer: Buffer.from(arrayBuf), mimeType };
+}
+
+// List models whose provider is configured (drives the UI dropdown).
+app.get('/api/models', (req, res) => {
+  res.json({ models: providers.getModels(), default: providers.DEFAULT_MODEL });
+});
+
+// Generate images for the selected model via its native provider adapter.
+app.post('/api/generate', upload.array('images', 14), async (req, res) => {
   try {
-    const { prompt, model, num_images, resolution } = req.body;
-    const apiKey = process.env.AIML_API_KEY;
+    const { prompt, model } = req.body;
+    if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
-    if (!apiKey) {
-      return res.status(500).json({ error: 'API key not configured' });
+    const modelId = providers.migrateModelId(model);
+    const modelDef = providers.getModel(modelId);
+    if (!providers.isProviderConfigured(modelDef.provider)) {
+      return res.status(400).json({ error: `Provider ${modelDef.provider} is not configured` });
     }
 
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt is required' });
+    // Gather input images as { buffer, mimeType } from uploaded files and URLs/base64.
+    const inputImages = [];
+    if (req.files) {
+      for (const file of req.files) inputImages.push({ buffer: file.buffer, mimeType: file.mimetype });
     }
-
-    // Prepare image URLs (either from URLs or uploaded files as base64)
-    let imageUrls = [];
-
-    // Check for URL-based images
     if (req.body.image_urls) {
-      try {
-        imageUrls = JSON.parse(req.body.image_urls);
-      } catch (e) {
-        // If it's a single URL string
-        imageUrls = [req.body.image_urls];
-      }
+      let urls;
+      try { urls = JSON.parse(req.body.image_urls); } catch { urls = [req.body.image_urls]; }
+      for (const url of urls) inputImages.push(await urlToImage(url));
     }
 
-    // Check for uploaded files
-    if (req.files && req.files.length > 0) {
-      req.files.forEach(file => {
-        const base64 = file.buffer.toString('base64');
-        const mimeType = file.mimetype;
-        imageUrls.push(`data:${mimeType};base64,${base64}`);
-      });
-    }
-
-    const count = parseInt(num_images) || 1;
-
-    const requestBody = {
-      model: model || 'google/nano-banana-pro-edit',
-      prompt: prompt,
-      resolution: resolution || '1K',
+    // Options understood by adapters (each picks what it needs).
+    const options = {
+      resolution: req.body.resolution,
+      aspectRatio: req.body.aspect_ratio,
+      size: req.body.size,
+      quality: req.body.quality,
+      background: req.body.background,
     };
 
-    // Only add image_urls if there are images
-    if (imageUrls.length > 0) {
-      requestBody.image_urls = imageUrls;
-    }
+    // Preserve current behavior: fan out one call per requested image.
+    const count = Math.min(parseInt(req.body.num_images) || 1, modelDef.capabilities.maxOutputs);
+    console.log(`Generating ${count} image(s) with ${modelId} (${inputImages.length} input image(s))`);
 
-    console.log('Sending request to AI/ML API:', {
-      ...requestBody,
-      image_urls: requestBody.image_urls ? `[${requestBody.image_urls.length} images]` : 'none',
-      count,
-    });
-
-    const makeRequest = () => fetch('https://api.aimlapi.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    const responses = await Promise.all(Array.from({ length: count }, makeRequest));
-
-    // Check for any errors
-    for (const response of responses) {
-      if (!response.ok) {
-        const errData = await response.json();
-        console.error('AI/ML API Error:', errData);
-        return res.status(response.status).json({
-          error: errData.error || 'Failed to generate image',
-          details: errData
-        });
-      }
-    }
-
-    const results = await Promise.all(responses.map(r => r.json()));
-
-    // Aggregate all data arrays into one response
-    const combined = results.flatMap(r => r.data || []);
-    res.json({ data: combined });
+    const results = await Promise.all(
+      Array.from({ length: count }, () => providers.generate(modelId, { prompt, inputImages, options }))
+    );
+    const images = results.flatMap(r => r.images);
+    res.json({ images });
   } catch (error) {
-    console.error('Server error:', error);
+    console.error('Generate error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Health check endpoint
+// Health check — reports which providers have keys configured.
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    hasApiKey: !!process.env.AIML_API_KEY
-  });
+  res.json({ status: 'ok', providers: providers.getConfiguredProviders() });
 });
 
 // ===== Chat Management Endpoints =====
@@ -272,5 +246,6 @@ app.get('/api/images/:type/:filename', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`API Key configured: ${!!process.env.AIML_API_KEY}`);
+  const configured = providers.getConfiguredProviders();
+  console.log(`Providers configured: google=${configured.google} openai=${configured.openai}`);
 });
