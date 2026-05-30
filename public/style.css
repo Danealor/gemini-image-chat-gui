@@ -1238,3 +1238,9 @@ header h1 {
         opacity: 1;
     }
 }
+
+/* Generation-only models: visually disable the image upload area */
+.image-upload-area.upload-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}

@@ -19,6 +19,11 @@ class GeminiChat {
             modelSelect: document.getElementById('model-select'),
             numImages: document.getElementById('num-images'),
             resolutionSelect: document.getElementById('resolution-select'),
+            resolutionGroup: document.getElementById('resolution-group'),
+            sizeGroup: document.getElementById('size-group'),
+            sizeSelect: document.getElementById('size-select'),
+            qualityGroup: document.getElementById('quality-group'),
+            qualitySelect: document.getElementById('quality-select'),
             newChatBtn: document.getElementById('new-chat-btn'),
             historyList: document.getElementById('history-list'),
             sidebar: document.getElementById('sidebar'),
@@ -49,6 +54,9 @@ class GeminiChat {
     async init() {
         // Load chats from server
         await this.loadChats();
+
+        // Populate the model dropdown from /api/models before rendering
+        await this.initModels();
 
         // Event listeners
         this.elements.sendBtn.addEventListener('click', () => this.sendMessage());
@@ -169,6 +177,87 @@ class GeminiChat {
             this.showNotification('Failed to load chats from server', 'error');
             this.chats = {};
         }
+    }
+
+    // Load the model registry and build the model dropdown + initial controls.
+    async initModels() {
+        await ModelRegistry.load();
+        this.elements.modelSelect.innerHTML = '';
+        const groups = {};
+        for (const m of ModelRegistry.models) {
+            const provider = m.provider === 'google' ? 'Google' : 'OpenAI';
+            if (!groups[provider]) {
+                groups[provider] = document.createElement('optgroup');
+                groups[provider].label = provider;
+                this.elements.modelSelect.appendChild(groups[provider]);
+            }
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = m.label;
+            groups[provider].appendChild(opt);
+        }
+        if (ModelRegistry.defaultId) this.elements.modelSelect.value = ModelRegistry.defaultId;
+        this.elements.modelSelect.addEventListener('change', () => this.applyModelCapabilities());
+        this.applyModelCapabilities();
+    }
+
+    // Show/hide and repopulate header controls based on the selected model's capabilities.
+    applyModelCapabilities() {
+        const caps = ModelRegistry.capabilities(this.elements.modelSelect.value);
+        if (!caps) return;
+
+        const fill = (select, values) => {
+            select.innerHTML = '';
+            for (const v of values) {
+                const opt = document.createElement('option');
+                opt.value = v;
+                opt.textContent = v;
+                select.appendChild(opt);
+            }
+        };
+
+        // Resolution (Gemini) vs Size+Quality (OpenAI).
+        if (caps.resolutions) {
+            fill(this.elements.resolutionSelect, caps.resolutions);
+            this.elements.resolutionGroup.style.display = '';
+        } else {
+            this.elements.resolutionGroup.style.display = 'none';
+        }
+        if (caps.sizes) {
+            fill(this.elements.sizeSelect, caps.sizes);
+            this.elements.sizeGroup.style.display = '';
+        } else {
+            this.elements.sizeGroup.style.display = 'none';
+        }
+        if (caps.qualities) {
+            fill(this.elements.qualitySelect, caps.qualities);
+            this.elements.qualityGroup.style.display = '';
+        } else {
+            this.elements.qualityGroup.style.display = 'none';
+        }
+
+        // Clamp image count to the model's max outputs.
+        this.elements.numImages.max = String(caps.maxOutputs);
+        if (parseInt(this.elements.numImages.value) > caps.maxOutputs) {
+            this.elements.numImages.value = String(caps.maxOutputs);
+        }
+
+        // Disable the upload area for generation-only models.
+        const uploadArea = document.querySelector('.image-upload-area');
+        if (uploadArea) {
+            uploadArea.classList.toggle('upload-disabled', caps.edit === false);
+        }
+    }
+
+    // Append model + capability-appropriate option fields to a generate FormData.
+    appendGenerateOptions(formData) {
+        const modelId = this.elements.modelSelect.value;
+        const caps = ModelRegistry.capabilities(modelId) || {};
+        formData.append('model', modelId);
+        formData.append('num_images', this.elements.numImages.value);
+        if (caps.resolutions) formData.append('resolution', this.elements.resolutionSelect.value);
+        if (caps.sizes) formData.append('size', this.elements.sizeSelect.value);
+        if (caps.qualities) formData.append('quality', this.elements.qualitySelect.value);
     }
 
     async saveChats() {
@@ -921,17 +1010,10 @@ class GeminiChat {
             // Build the full conversation context for the API
             const conversationContext = this.buildConversationContext(assistantMsgIndex - 1);
 
-            // Use current header settings for model and num_images (allows changing settings for regeneration)
-            const currentModel = this.elements.modelSelect.value;
-            const currentNumImages = parseInt(this.elements.numImages.value);
-            const currentResolution = this.elements.resolutionSelect.value;
-
             // Prepare form data
             const formData = new FormData();
             formData.append('prompt', conversationContext.prompt);
-            formData.append('model', currentModel);
-            formData.append('num_images', currentNumImages);
-            formData.append('resolution', currentResolution);
+            this.appendGenerateOptions(formData);
 
             // Add images - separate server paths, base64, and external URLs
             const externalUrls = [];
@@ -1532,7 +1614,18 @@ class GeminiChat {
         }
 
         // Set model and num_images
-        if (message.model) this.elements.modelSelect.value = message.model;
+        if (message.model) {
+            // Map legacy AIML model ids to their nearest native equivalent so old chats stay usable.
+            const legacyMap = {
+                'google/nano-banana-pro-edit': 'gemini-3-pro-image',
+                'google/gemini-3-pro-image-preview-edit': 'gemini-3-pro-image',
+            };
+            const targetId = ModelRegistry.get(message.model)
+                ? message.model
+                : (legacyMap[message.model] || ModelRegistry.defaultId);
+            this.elements.modelSelect.value = targetId;
+            this.applyModelCapabilities();
+        }
         if (message.numImages) this.elements.numImages.value = message.numImages;
     }
 
@@ -1956,17 +2049,10 @@ class GeminiChat {
         this.elements.sendBtn.disabled = true;
 
         try {
-            // Use current header settings for model and num_images (allows changing settings for regeneration)
-            const currentModel = this.elements.modelSelect.value;
-            const currentNumImages = parseInt(this.elements.numImages.value);
-            const currentResolution = this.elements.resolutionSelect.value;
-
             // Prepare form data
             const formData = new FormData();
             formData.append('prompt', context.prompt);
-            formData.append('model', currentModel);
-            formData.append('num_images', currentNumImages);
-            formData.append('resolution', currentResolution);
+            this.appendGenerateOptions(formData);
 
             // Add images - separate server paths, base64, and external URLs
             const externalUrls = [];
