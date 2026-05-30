@@ -4,7 +4,14 @@
       "Bash(git init:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "Bash(npm test:*)",
+      "Bash(dir test-resultsstorage-migration-Storage--252d2-sist-chat-after-page-reload-chromium)",
+      "Bash(npx playwright test \"should persist chat after page reload\" --headed)",
+      "Bash(npx playwright test:*)",
+      "WebSearch",
+      "WebFetch(domain:developers.openai.com)",
+      "WebFetch(domain:ai.google.dev)"
     ],
     "deny": [],
     "ask": []
