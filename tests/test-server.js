@@ -1,5 +1,5 @@
 /**
- * Test server that stubs out AI/ML API calls
+ * Test server that stubs out provider API calls
  * Uses port 3001 and a separate test data directory
  */
 

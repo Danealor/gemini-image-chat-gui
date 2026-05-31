@@ -1,7 +1,7 @@
 {
-  "name": "aiml-gemini-chat",
+  "name": "image-generation-chat",
   "version": "1.0.0",
-  "description": "Simple chat interface for Gemini 3 Image Pro via AI/ML API",
+  "description": "Chat interface for native Google Gemini and OpenAI image generation models",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,7 +12,7 @@
   },
   "keywords": [
     "gemini",
-    "aiml",
+    "openai",
     "chat",
     "image-generation"
   ],
